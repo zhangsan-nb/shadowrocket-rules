@@ -39,7 +39,11 @@ def fake_fetch():
 
 
 @pytest.fixture
-def temp_repo(tmp_path: Path) -> Path:
+def temp_repo(tmp_path: Path, monkeypatch) -> Path:
+    # GitHub Actions injects identity variables for the outer checkout. Tests
+    # create independent repositories and must not inherit that outer identity.
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     source = Path(__file__).resolve().parents[1]
     repo = tmp_path / "repo"
     repo.mkdir()

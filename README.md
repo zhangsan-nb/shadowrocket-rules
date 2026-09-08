@@ -107,13 +107,13 @@ daily-build 在 UTC 01:30 运行，即北京时间 09:30。GitHub Actions 不支
 
 ## Shadowrocket 订阅 URL
 
-仓库发布到 GitHub 后，将 OWNER 和 REPOSITORY 替换为实际值：
+正式仓库：<https://github.com/zhangsan-nb/shadowrocket-rules>
 
-    https://raw.githubusercontent.com/OWNER/REPOSITORY/release/rules/direct.list
-    https://raw.githubusercontent.com/OWNER/REPOSITORY/release/rules/reject.list
-    https://raw.githubusercontent.com/OWNER/REPOSITORY/release/rules/proxy.list
+    https://raw.githubusercontent.com/zhangsan-nb/shadowrocket-rules/release/rules/direct.list
+    https://raw.githubusercontent.com/zhangsan-nb/shadowrocket-rules/release/rules/reject.list
+    https://raw.githubusercontent.com/zhangsan-nb/shadowrocket-rules/release/rules/proxy.list
 
-在仓库和 release 分支真正上线前，不应把占位 URL 加入客户端。
+客户端只应订阅 `release` 分支 URL；不要订阅 `main` 或任意上游地址。
 
 ## 维护
 

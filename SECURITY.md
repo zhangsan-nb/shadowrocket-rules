@@ -17,7 +17,7 @@ main 中的构建器、配置、安全策略、测试和工作流是可信代码
 
 ## 报告问题
 
-不要在公开 Issue 中粘贴凭据、Token、私有域名或未公开漏洞细节。请使用 GitHub Security Advisory 的私密报告功能。仓库未上线前，请直接联系仓库所有者。
+不要在公开 Issue 中粘贴凭据、Token、私有域名或未公开漏洞细节。请使用 GitHub Security Advisory 的私密报告功能。
 
 报告应包含受影响 commit、最小复现、预期与实际门禁行为，以及是否可能改变 release。
 

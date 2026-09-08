@@ -1,13 +1,13 @@
 # Shadowrocket Trusted Rules Audit
 
-- Build: 2026-09-08T14:45:48.536426+00:00
-- Build ID: 7014331037decbdb8853
+- Build: 2026-09-08T19:51:35.323542+00:00
+- Build ID: 8eaf57b9fcf71a301945
 - Result: PASS
 - Published: NO (candidate)
 
 ## Source status
 
-- blackmatrix7_openai: PASS, bytes=1354, sha256=52984c9768f3cae1d740fb22eace657048054aa97f75146147c467644e173aba
+- blackmatrix7_openai: PASS, bytes=1353, sha256=6f4047cdbf6953cf5d9b38c4ccd6da7bc6f1acb91b7a87134f25d5b8f5d2408b
 
 ## Security gates
 

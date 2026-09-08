@@ -1,7 +1,7 @@
 # Shadowrocket Trusted Rules Audit
 
-- Build: 2026-09-08T13:40:34.383598+00:00
-- Build ID: 34abf10bb33a21082e92
+- Build: 2026-09-08T14:35:53.058170+00:00
+- Build ID: 0221f3c35f2ac29ccf16
 - Result: PASS
 - Published: NO (candidate)
 
@@ -13,21 +13,21 @@
 
 - syntax_allowlist_domain_cidr: PASS
 - cross_policy_conflict: PASS
-- protected_domains: N/A — 首次发布：无可信基线；其他内在门仍强制执行
+- protected_domains: PASS — 相关规则语言签名完全相同；固定抽样不作为证明
 - minimum_nonempty: PASS — {'direct': 1, 'reject': 1, 'proxy': 35}
-- anomaly_delta: N/A — 首次发布无可信数量基线
+- anomaly_delta: PASS
 
 ## DIRECT
 
-- Previous: 0
+- Previous: 1
 - Current: 1
-- Added: 1
+- Added: 0
 - Removed: 0
-- Delta: 100.0%
+- Delta: 0.0%
 
 ### Added rules
 
-- DOMAIN,time.apple.com
+- None
 
 ### Removed rules
 
@@ -35,15 +35,15 @@
 
 ## REJECT
 
-- Previous: 0
+- Previous: 1
 - Current: 1
-- Added: 1
+- Added: 0
 - Removed: 0
-- Delta: 100.0%
+- Delta: 0.0%
 
 ### Added rules
 
-- DOMAIN,ads.example.com
+- None
 
 ### Removed rules
 
@@ -51,49 +51,15 @@
 
 ## PROXY
 
-- Previous: 0
+- Previous: 35
 - Current: 35
-- Added: 35
+- Added: 0
 - Removed: 0
-- Delta: 100.0%
+- Delta: 0.0%
 
 ### Added rules
 
-- DOMAIN,browser-intake-datadoghq.com
-- DOMAIN,chat.openai.com.cdn.cloudflare.net
-- DOMAIN,openai-api.arkoselabs.com
-- DOMAIN,openaicom-api-bdcpf8c6d2e9atf6.z01.azurefd.net
-- DOMAIN,openaicomproductionae4b.blob.core.windows.net
-- DOMAIN,production-openaicom-storage.azureedge.net
-- DOMAIN,static.cloudflareinsights.com
-- DOMAIN-KEYWORD,openai
-- DOMAIN-SUFFIX,ai.com
-- DOMAIN-SUFFIX,algolia.net
-- DOMAIN-SUFFIX,api.statsig.com
-- DOMAIN-SUFFIX,auth0.com
-- DOMAIN-SUFFIX,chatgpt.com
-- DOMAIN-SUFFIX,chatgpt.livekit.cloud
-- DOMAIN-SUFFIX,client-api.arkoselabs.com
-- DOMAIN-SUFFIX,events.statsigapi.net
-- DOMAIN-SUFFIX,featuregates.org
-- DOMAIN-SUFFIX,host.livekit.cloud
-- DOMAIN-SUFFIX,identrust.com
-- DOMAIN-SUFFIX,intercom.io
-- DOMAIN-SUFFIX,intercomcdn.com
-- DOMAIN-SUFFIX,launchdarkly.com
-- DOMAIN-SUFFIX,oaistatic.com
-- DOMAIN-SUFFIX,oaiusercontent.com
-- DOMAIN-SUFFIX,observeit.net
-- DOMAIN-SUFFIX,openai.com
-- DOMAIN-SUFFIX,openaiapi-site.azureedge.net
-- DOMAIN-SUFFIX,openaicom.imgix.net
-- DOMAIN-SUFFIX,segment.io
-- DOMAIN-SUFFIX,sentry.io
-- DOMAIN-SUFFIX,stripe.com
-- DOMAIN-SUFFIX,turn.livekit.cloud
-- IP-ASN,20473,no-resolve
-- IP-CIDR,24.199.123.28/32,no-resolve
-- IP-CIDR,64.23.132.171/32,no-resolve
+- None
 
 ### Removed rules
 

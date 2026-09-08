@@ -63,15 +63,16 @@ def _read_release_baseline(
     repo: Path,
     allow_types: set[str],
 ) -> tuple[list[Rule] | None, tuple[str, ...] | None, str | None]:
-    if release_commit(repo) is None:
+    baseline_sha = release_commit(repo)
+    if baseline_sha is None:
         return None, None, None
     rules: list[Rule] = []
     for category in CATEGORIES:
-        text = git_output(repo, "show", f"release:rules/{category}.list", allow_failure=True)
+        text = git_output(repo, "show", f"{baseline_sha}:rules/{category}.list", allow_failure=True)
         if text is None:
             raise SecurityGateError("release 分支缺少规则文件", key="baseline.incomplete")
         rules.extend(parse_rules(text, category=category, source="baseline", allow_types=allow_types))
-    raw_build = git_output(repo, "show", "release:metadata/build.json", allow_failure=True)
+    raw_build = git_output(repo, "show", f"{baseline_sha}:metadata/build.json", allow_failure=True)
     if raw_build is None:
         raise SecurityGateError("release 分支缺少构建身份元数据", key="baseline.identity_missing")
     try:

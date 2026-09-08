@@ -84,3 +84,15 @@ def test_two_releases_have_normal_parent_history(temp_repo, fake_fetch, monkeypa
     second = publish_candidate(temp_repo, temp_repo / "candidate", local_only=True)
     assert git(temp_repo, "rev-parse", f"{second}^") == first
     assert git(temp_repo, "rev-list", "--count", "main..release") == "2"
+
+
+def test_build_reads_baseline_by_resolved_remote_tracking_sha(temp_repo, fake_fetch, monkeypatch):
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "1788831000")
+    build(temp_repo, fetch_function=fake_fetch)
+    first = publish_candidate(temp_repo, temp_repo / "candidate", local_only=True)
+    git(temp_repo, "update-ref", "refs/remotes/origin/release", first)
+    git(temp_repo, "branch", "-D", "release")
+
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "1788831060")
+    result = build(temp_repo, fetch_function=fake_fetch)
+    assert result["build"]["baseline_release_commit"] == first

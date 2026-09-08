@@ -1,0 +1,6 @@
+# NAME: Direct
+# GENERATED: 2026-09-08T13:40:34.383598+00:00
+# DO NOT EDIT
+# ORDER: direct -> reject -> proxy -> GEOIP CN -> FINAL
+
+DOMAIN,time.apple.com

@@ -63,6 +63,12 @@ def test_daily_pipeline_pins_both_jobs_to_event_commit(temp_repo):
     assert workflow.count('test "$(git rev-parse HEAD)" = "$GITHUB_SHA"') == 2
 
 
+def test_publish_script_expands_candidate_argument(temp_repo):
+    script = (temp_repo / "scripts" / "publish.sh").read_text(encoding="utf-8")
+    assert 'candidate="${1:-$repo_root/candidate-verified}"' in script
+    assert 'candidate="\\${1:' not in script
+
+
 def test_ci_publish_rejects_non_live_candidate(temp_repo, fake_fetch, monkeypatch):
     monkeypatch.setenv("SOURCE_DATE_EPOCH", "1788831000")
     build(temp_repo, fetch_function=fake_fetch)

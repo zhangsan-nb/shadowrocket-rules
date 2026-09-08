@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 import tempfile
@@ -13,11 +14,19 @@ from .config import load_json_yaml, load_lines, validate_policy
 from .errors import SecurityGateError, TrustedRulesError
 from .fetcher import fetch_source
 from .gates import PublicSuffixes, merge_manual, run_gates
-from .models import CATEGORIES, GateResult, Rule, SourceMetadata
+from .models import CATEGORIES, MATCHER_SEMANTICS_VERSION, GateResult, Rule, SourceMetadata
 from .normalize import normalize_domain, stable_unique
 from .parser import parse_rules
 
 FetchFunction = Callable[[str, dict[str, Any], dict[str, Any]], tuple[str, SourceMetadata]]
+LEGACY_V1_PROOF_BINDINGS = frozenset(
+    {
+        (
+            "801a48a157fdea746b18a56fbb29f3b8ba08f91d",
+            "5c686312e137305e178f70e806869111a16d807ce73b184feb82d4322b92cf98",
+        )
+    }
+)
 
 
 def repository_root() -> Path:
@@ -50,16 +59,35 @@ def _tree_digest(root: Path, relative_paths: list[str]) -> str:
     return digest.hexdigest()
 
 
-def _read_release_rules(repo: Path, allow_types: set[str]) -> list[Rule] | None:
+def _read_release_baseline(
+    repo: Path,
+    allow_types: set[str],
+) -> tuple[list[Rule] | None, tuple[str, ...] | None, str | None]:
     if release_commit(repo) is None:
-        return None
+        return None, None, None
     rules: list[Rule] = []
     for category in CATEGORIES:
         text = git_output(repo, "show", f"release:rules/{category}.list", allow_failure=True)
         if text is None:
             raise SecurityGateError("release 分支缺少规则文件", key="baseline.incomplete")
         rules.extend(parse_rules(text, category=category, source="baseline", allow_types=allow_types))
-    return stable_unique(rules)
+    raw_build = git_output(repo, "show", "release:metadata/build.json", allow_failure=True)
+    if raw_build is None:
+        raise SecurityGateError("release 分支缺少构建身份元数据", key="baseline.identity_missing")
+    try:
+        build_identity = json.loads(raw_build)
+    except json.JSONDecodeError as exc:
+        raise SecurityGateError("release 构建身份元数据无效", key="baseline.identity_invalid") from exc
+    baseline_order = build_identity.get("category_order")
+    baseline_matcher = build_identity.get("matcher_semantics_version")
+    legacy_identity = (build_identity.get("source_commit"), build_identity.get("code_digest"))
+    if baseline_order is None and build_identity.get("schema_version") == 1 and legacy_identity in LEGACY_V1_PROOF_BINDINGS:
+        # 仅对仓库中已审计的首个 V1 release 做一次性迁移；未知 V1 身份仍失败关闭。
+        baseline_order = list(CATEGORIES)
+        baseline_matcher = MATCHER_SEMANTICS_VERSION
+    if tuple(baseline_order or ()) != CATEGORIES or baseline_matcher != MATCHER_SEMANTICS_VERSION:
+        raise SecurityGateError("release 受保护域证明契约缺失或不受支持", key="baseline.proof_contract")
+    return stable_unique(rules), tuple(baseline_order), str(baseline_matcher)
 
 
 def _render_rules(category: str, rules: list[Rule], generated_at: str) -> str:
@@ -195,6 +223,7 @@ def build(
     output: Path | None = None,
     fetch_function: FetchFunction = fetch_source,
     ci: bool = False,
+    source_mode: str | None = None,
 ) -> dict[str, Any]:
     repo = (repo or repository_root()).resolve()
     output = (output or repo / "candidate").resolve()
@@ -203,11 +232,21 @@ def build(
     sources_config = load_json_yaml(repo / "config" / "sources.yml")
     policy = load_json_yaml(repo / "config" / "policy.yml")
     validate_policy(policy)
+    selected_source_mode = source_mode or ("live" if ci else "snapshot")
+    if selected_source_mode not in {"live", "snapshot"}:
+        raise TrustedRulesError("source_mode 必须是 live 或 snapshot", key="source.mode")
+    if ci and selected_source_mode != "live":
+        raise TrustedRulesError("CI 只允许 live HTTPS 输入，禁止快照模式", key="source.ci_mode")
+    source_resolution_mode = (
+        "injected_test_fetcher"
+        if fetch_function is not fetch_source
+        else "live_https" if selected_source_mode == "live" else "pinned_snapshot"
+    )
     allow_types = set(load_lines(repo / "config" / "allow_rule_types.txt"))
     protected = {normalize_domain(item) for item in load_lines(repo / "config" / "protected_domains.txt")}
     psl_hash = _verify_psl_pin(repo)
     psl = PublicSuffixes.load(repo / "config" / "public_suffix_list.dat")
-    previous = _read_release_rules(repo, allow_types)
+    previous, previous_category_order, previous_matcher_version = _read_release_baseline(repo, allow_types)
 
     upstream: list[Rule] = []
     source_metadata: list[SourceMetadata] = []
@@ -217,7 +256,11 @@ def build(
             continue
         if source.get("type") != "shadowrocket_ruleset" or source.get("category") not in CATEGORIES:
             raise TrustedRulesError(f"源 {name} 的类型或类别不受支持", key="source.config")
-        if not ci and fetch_function is fetch_source and source.get("bootstrap_path"):
+        if fetch_function is not fetch_source:
+            text, metadata = fetch_function(name, source, policy)
+        elif selected_source_mode == "snapshot":
+            if not source.get("bootstrap_path"):
+                raise SecurityGateError(f"源 {name} 没有固定快照", key="source.bootstrap_missing")
             text, metadata = _load_bootstrap_snapshot(repo, name, source)
         else:
             text, metadata = fetch_function(name, source, policy)
@@ -243,7 +286,19 @@ def build(
         if rule.source not in origins[key]:
             origins[key].append(rule.source)
     rules = stable_unique(merged_rules)
-    gates, diff = run_gates(rules, previous, policy, protected, psl, source_counts)
+    category_order = tuple(policy["category_order"])
+    gates, diff = run_gates(
+        rules,
+        previous,
+        policy,
+        protected,
+        psl,
+        source_counts,
+        current_category_order=category_order,
+        previous_category_order=previous_category_order,
+        current_matcher_version=MATCHER_SEMANTICS_VERSION,
+        previous_matcher_version=previous_matcher_version,
+    )
 
     generated_at = _timestamp()
     source_sha = source_commit(repo)
@@ -254,6 +309,7 @@ def build(
                 "source_commit": source_sha,
                 "baseline_release_commit": baseline_sha,
                 "generated_at": generated_at,
+                "source_resolution_mode": source_resolution_mode,
                 "sources": [item.sha256 for item in source_metadata],
             }
         )
@@ -284,6 +340,9 @@ def build(
             "generated_at": generated_at,
             "source_commit": source_sha,
             "baseline_release_commit": baseline_sha,
+            "source_resolution_mode": source_resolution_mode,
+            "category_order": list(category_order),
+            "matcher_semantics_version": MATCHER_SEMANTICS_VERSION,
             "config_digest": config_digest,
             "code_digest": code_digest,
             "psl_digest": psl_hash,
@@ -294,6 +353,9 @@ def build(
         }
         (temporary / "metadata" / "build.json").write_bytes(canonical_json(build_payload))
         report = _report_payload(build_id, generated_at, source_sha, baseline_sha, source_metadata, gates, diff)
+        report["source_resolution_mode"] = source_resolution_mode
+        report["category_order"] = list(category_order)
+        report["matcher_semantics_version"] = MATCHER_SEMANTICS_VERSION
         (temporary / "reports" / "latest.json").write_bytes(canonical_json(report))
         markdown = _report_markdown(report)
         (temporary / "reports" / "latest.md").write_text(markdown, encoding="utf-8", newline="\n")
@@ -307,6 +369,9 @@ def build(
             "build_id": build_id,
             "source_commit": source_sha,
             "baseline_release_commit": baseline_sha,
+            "source_resolution_mode": source_resolution_mode,
+            "category_order": list(category_order),
+            "matcher_semantics_version": MATCHER_SEMANTICS_VERSION,
             "config_digest": config_digest,
             "code_digest": code_digest,
             "psl_digest": psl_hash,

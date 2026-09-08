@@ -57,6 +57,29 @@ def test_unrelated_safe_change_passes_protected_proof():
     assert result.status == "PASS"
 
 
+def test_protected_proof_binds_category_order_and_matcher_version():
+    baseline = [rule("DOMAIN-SUFFIX", "openai.com", "proxy")]
+    with pytest.raises(SecurityGateError) as changed_order:
+        check_protected_equivalence(
+            baseline,
+            baseline,
+            {"openai.com"},
+            current_category_order=("reject", "direct", "proxy"),
+            previous_category_order=("direct", "reject", "proxy"),
+        )
+    assert changed_order.value.key == "protected.contract_changed"
+
+    with pytest.raises(SecurityGateError) as changed_matcher:
+        check_protected_equivalence(
+            baseline,
+            baseline,
+            {"openai.com"},
+            current_matcher_version="future-matcher-v2",
+            previous_matcher_version="category-first-domain-language-v1",
+        )
+    assert changed_matcher.value.key == "protected.contract_changed"
+
+
 def test_large_anomaly_blocks(tmp_path):
     psl_path = tmp_path / "psl"
     psl_path.write_text("com\n", encoding="utf-8")
@@ -73,4 +96,3 @@ def test_large_anomaly_blocks(tmp_path):
     with pytest.raises(SecurityGateError) as caught:
         run_gates(current, previous, policy, {"openai.com"}, PublicSuffixes.load(psl_path), {})
     assert caught.value.key == "anomaly.delta"
-

@@ -5,7 +5,7 @@ import subprocess
 
 import pytest
 
-from trusted_rules.errors import SourceFetchError
+from trusted_rules.errors import SourceFetchError, TrustedRulesError
 from trusted_rules.pipeline import build
 from trusted_rules.release import publish_candidate
 
@@ -48,6 +48,29 @@ def test_ci_mode_never_uses_bootstrap_fallback(temp_repo):
 
     with pytest.raises(SourceFetchError):
         build(temp_repo, fetch_function=fail, ci=True)
+
+
+def test_ci_mode_rejects_snapshot_even_with_injected_fetcher(temp_repo, fake_fetch):
+    with pytest.raises(TrustedRulesError) as caught:
+        build(temp_repo, fetch_function=fake_fetch, ci=True, source_mode="snapshot")
+    assert caught.value.key == "source.ci_mode"
+
+
+def test_daily_pipeline_pins_both_jobs_to_event_commit(temp_repo):
+    workflow = (temp_repo / ".github" / "workflows" / "daily-build.yml").read_text(encoding="utf-8")
+    assert workflow.count("ref: ${{ github.sha }}") == 2
+    assert "ref: main" not in workflow
+    assert workflow.count('test "$(git rev-parse HEAD)" = "$GITHUB_SHA"') == 2
+
+
+def test_ci_publish_rejects_non_live_candidate(temp_repo, fake_fetch, monkeypatch):
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "1788831000")
+    build(temp_repo, fetch_function=fake_fetch)
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_SHA", git(temp_repo, "rev-parse", "HEAD"))
+    with pytest.raises(TrustedRulesError) as caught:
+        publish_candidate(temp_repo, temp_repo / "candidate", local_only=True)
+    assert caught.value.key == "artifact.source_mode_binding"
 
 
 def test_two_releases_have_normal_parent_history(temp_repo, fake_fetch, monkeypatch):

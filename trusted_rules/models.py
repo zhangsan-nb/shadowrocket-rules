@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 CATEGORIES = ("direct", "reject", "proxy")
+MATCHER_SEMANTICS_VERSION = "category-first-domain-language-v1"
 DOMAIN_TYPES = frozenset({"DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD"})
 IP_TYPES = frozenset({"IP-CIDR", "IP-CIDR6"})
 

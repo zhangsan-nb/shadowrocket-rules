@@ -3,12 +3,31 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .errors import SecurityGateError, TrustedRulesError
+from .models import CATEGORIES, MATCHER_SEMANTICS_VERSION
 
 ALLOWED_TOP_LEVEL = frozenset({"rules", "reports", "metadata"})
+REQUIRED_IDENTITY_FIELDS = frozenset(
+    {
+        "build_id",
+        "source_commit",
+        "baseline_release_commit",
+        "source_resolution_mode",
+        "category_order",
+        "matcher_semantics_version",
+        "config_digest",
+        "code_digest",
+        "psl_digest",
+        "input_digests",
+        "normalized_set_digest",
+        "gate_result_digest",
+        "files",
+    }
+)
 
 
 def canonical_json(data: Any) -> bytes:
@@ -58,16 +77,46 @@ def write_manifest(root: Path, identity: dict[str, Any]) -> dict[str, Any]:
     return manifest
 
 
-def verify_manifest(root: Path, *, expected_source_sha: str | None = None, expected_baseline_sha: str | None = None) -> dict[str, Any]:
+def verify_manifest(
+    root: Path,
+    *,
+    expected_source_sha: str | None = None,
+    expected_baseline_sha: str | None = None,
+    expected_source_mode: str | None = None,
+) -> dict[str, Any]:
     path = root / "metadata" / "manifest.json"
     try:
         manifest = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise SecurityGateError(f"manifest 不可读: {exc}", key="artifact.manifest") from exc
+    if manifest.get("schema_version") != 1 or not REQUIRED_IDENTITY_FIELDS.issubset(manifest):
+        raise SecurityGateError("manifest 身份字段缺失或版本不受支持", key="artifact.identity")
+    if tuple(manifest.get("category_order", ())) != CATEGORIES:
+        raise SecurityGateError("manifest 类别优先级无效", key="artifact.policy_order")
+    if manifest.get("matcher_semantics_version") != MATCHER_SEMANTICS_VERSION:
+        raise SecurityGateError("manifest 匹配语义版本无效", key="artifact.matcher_version")
+    if manifest.get("source_resolution_mode") not in {"live_https", "pinned_snapshot", "injected_test_fetcher"}:
+        raise SecurityGateError("manifest 输入解析模式无效", key="artifact.source_mode")
+    digest_fields = (
+        "config_digest",
+        "code_digest",
+        "psl_digest",
+        "normalized_set_digest",
+        "gate_result_digest",
+    )
+    if any(re.fullmatch(r"[0-9a-f]{64}", str(manifest.get(field, ""))) is None for field in digest_fields):
+        raise SecurityGateError("manifest 摘要字段无效", key="artifact.identity_digest")
+    input_digests = manifest.get("input_digests")
+    if not isinstance(input_digests, dict) or not input_digests or any(
+        re.fullmatch(r"[0-9a-f]{64}", str(value)) is None for value in input_digests.values()
+    ):
+        raise SecurityGateError("manifest 输入摘要无效", key="artifact.input_digest")
     if expected_source_sha and manifest.get("source_commit") != expected_source_sha:
         raise SecurityGateError("候选 source commit 与发布运行不一致", key="artifact.source_binding")
     if expected_baseline_sha is not None and manifest.get("baseline_release_commit") != expected_baseline_sha:
         raise SecurityGateError("候选 baseline 与当前 release 不一致", key="artifact.baseline_binding")
+    if expected_source_mode and manifest.get("source_resolution_mode") != expected_source_mode:
+        raise SecurityGateError("候选输入解析模式与发布要求不一致", key="artifact.source_mode_binding")
     actual = manifest_entries(root)
     if manifest.get("files") != actual:
         raise SecurityGateError("候选文件集合、大小或 SHA-256 与 manifest 不一致", key="artifact.hash")

@@ -45,7 +45,11 @@ def _remote_release(repo: Path) -> str | None:
 def publish_candidate(repo: Path, candidate: Path, *, local_only: bool = False) -> str:
     repo = repo.resolve()
     candidate = candidate.resolve()
-    manifest = verify_manifest(candidate, expected_source_sha=os.environ.get("GITHUB_SHA"))
+    manifest = verify_manifest(
+        candidate,
+        expected_source_sha=os.environ.get("GITHUB_SHA"),
+        expected_source_mode="live_https" if os.environ.get("GITHUB_ACTIONS") == "true" else None,
+    )
     source_sha = str(manifest.get("source_commit", ""))
     if git_output(repo, "cat-file", "-e", f"{source_sha}^{{commit}}", allow_failure=True) is None:
         raise SecurityGateError("manifest source commit 在仓库中不存在", key="release.source")

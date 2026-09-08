@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .errors import PolicyConflictError, SecurityGateError
-from .models import CATEGORIES, DOMAIN_TYPES, IP_TYPES, GateResult, Rule
+from .models import CATEGORIES, DOMAIN_TYPES, IP_TYPES, MATCHER_SEMANTICS_VERSION, GateResult, Rule
 
 
 @dataclass(frozen=True)
@@ -141,9 +141,26 @@ def _protected_signature(rules: Iterable[Rule], protected: str) -> frozenset[tup
     )
 
 
-def check_protected_equivalence(current: list[Rule], previous: list[Rule] | None, protected: set[str]) -> GateResult:
+def check_protected_equivalence(
+    current: list[Rule],
+    previous: list[Rule] | None,
+    protected: set[str],
+    *,
+    current_category_order: Iterable[str] = CATEGORIES,
+    previous_category_order: Iterable[str] | None = None,
+    current_matcher_version: str = MATCHER_SEMANTICS_VERSION,
+    previous_matcher_version: str | None = None,
+) -> GateResult:
     if previous is None:
         return GateResult("protected_domains", "N/A", "首次发布：无可信基线；其他内在门仍强制执行")
+    current_order = tuple(current_category_order)
+    baseline_order = tuple(previous_category_order or CATEGORIES)
+    baseline_matcher = previous_matcher_version or MATCHER_SEMANTICS_VERSION
+    if current_order != baseline_order or current_matcher_version != baseline_matcher:
+        raise SecurityGateError(
+            "受保护域的类别优先级或匹配语义版本发生变化，无法证明策略等价",
+            key="protected.contract_changed",
+        )
     changed: list[str] = []
     for domain in sorted(protected):
         before = _protected_signature(previous, domain)
@@ -204,6 +221,11 @@ def run_gates(
     protected: set[str],
     psl: PublicSuffixes,
     source_counts: dict[str, int],
+    *,
+    current_category_order: Iterable[str] = CATEGORIES,
+    previous_category_order: Iterable[str] | None = None,
+    current_matcher_version: str = MATCHER_SEMANTICS_VERSION,
+    previous_matcher_version: str | None = None,
 ) -> tuple[list[GateResult], dict[str, Any]]:
     results: list[GateResult] = []
     if not rules:
@@ -212,7 +234,17 @@ def run_gates(
     results.append(GateResult("syntax_allowlist_domain_cidr", "PASS"))
     check_cross_policy(rules, policy.get("policy_exceptions", []), protected)
     results.append(GateResult("cross_policy_conflict", "PASS"))
-    results.append(check_protected_equivalence(rules, previous, protected))
+    results.append(
+        check_protected_equivalence(
+            rules,
+            previous,
+            protected,
+            current_category_order=current_category_order,
+            previous_category_order=previous_category_order,
+            current_matcher_version=current_matcher_version,
+            previous_matcher_version=previous_matcher_version,
+        )
+    )
     counts = {category: sum(rule.category == category for rule in rules) for category in CATEGORIES}
     for category, minimum in policy.get("minimum_rules", {}).items():
         if counts.get(category, 0) < int(minimum):
@@ -241,4 +273,3 @@ def run_gates(
                 )
         results.append(GateResult("anomaly_delta", "PASS"))
     return results, diff
-

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .errors import TrustedRulesError
+from .models import CATEGORIES
 
 
 def load_json_yaml(path: Path) -> dict[str, Any]:
@@ -38,7 +39,17 @@ def validate_policy(policy: dict[str, Any]) -> None:
         raise TrustedRulesError("CIDR 阈值只能比 IPv4 /8、IPv6 /16 更严格", key="config.policy")
     if absolute < 0 or percentage < 0:
         raise TrustedRulesError("异常变化阈值不得为负", key="config.policy")
+    if tuple(policy.get("category_order", ())) != CATEGORIES:
+        raise TrustedRulesError(
+            "category_order 必须固定为 direct, reject, proxy",
+            key="config.policy_order",
+        )
+    proof = policy.get("protected_proof", {})
+    if proof.get("algorithm") != "conservative-language-signature-v1":
+        raise TrustedRulesError(
+            "protected_proof.algorithm 不受支持",
+            key="config.protected_proof",
+        )
     for category, count in policy.get("minimum_rules", {}).items():
         if category not in {"direct", "reject", "proxy"} or not isinstance(count, int) or count < 1:
             raise TrustedRulesError("minimum_rules 必须为合法类别的正整数", key="config.policy")
-

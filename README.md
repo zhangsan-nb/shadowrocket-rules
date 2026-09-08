@@ -23,12 +23,13 @@ V1 只发布三个纯 RuleSet：
     python -m pip install -r requirements.txt
     python -m pytest -q
     python scripts/fetch.py
-    python scripts/build.py
+    python scripts/build.py --source-mode snapshot
+    python scripts/build.py --source-mode live
     python scripts/validate.py
     python scripts/diff.py
     python scripts/report.py
 
-普通本地 build 使用 config/bootstrap 中经人工核实且固定 SHA-256 与上游 commit 的首发快照，便于离线复现。build --ci 不允许快照或网络失败回退，必须实时通过 HTTPS 抓取；每日自动更新只使用 CI 模式。
+普通本地 build 默认使用 config/bootstrap 中经人工核实且固定 SHA-256 与上游 commit 的首发快照，便于离线复现；也可以用 `--source-mode live` 显式请求实时 HTTPS。`build --ci` 强制 live，拒绝 snapshot 或网络失败回退。输入解析模式会写入并绑定到候选 manifest；每日自动更新只使用 CI live 模式。
 
 生成目录 candidate 不纳入 main。首次本地发布：
 
@@ -83,6 +84,8 @@ release 只包含 rules、reports、metadata。metadata/manifest.json 使用 can
 - 每个输入的 provenance 与 SHA-256
 - 归一化规则集合与 gate 结果 digest
 - 所有候选文件的路径、大小与 SHA-256
+
+manifest 还显式绑定输入解析模式、类别优先级和匹配语义版本。受保护域证明只有在相关规则语言签名、类别优先级和匹配语义版本均与 release 基线一致时才通过。
 
 manifest 不自哈希。额外文件、缺失文件、路径穿越、符号链接或任意字节篡改都会阻断发布。
 

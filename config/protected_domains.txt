@@ -1,0 +1,14 @@
+apple.com
+icloud.com
+github.com
+githubusercontent.com
+microsoft.com
+google.com
+openai.com
+anthropic.com
+cloudflare.com
+telegram.org
+whatsapp.com
+facebook.com
+instagram.com
+

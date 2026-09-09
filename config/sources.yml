@@ -1,17 +1,45 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "sources": {
+    "loyalsoldier_china_direct": {
+      "enabled": true,
+      "type": "domain_set",
+      "category": "direct",
+      "url": "https://raw.githubusercontent.com/Loyalsoldier/surge-rules/release/direct.txt",
+      "trust": "primary",
+      "expected_repository": "Loyalsoldier/surge-rules"
+    },
+    "loyalsoldier_ad_reject": {
+      "enabled": true,
+      "type": "domain_set",
+      "category": "reject",
+      "url": "https://raw.githubusercontent.com/Loyalsoldier/surge-rules/release/reject.txt",
+      "trust": "primary",
+      "expected_repository": "Loyalsoldier/surge-rules"
+    },
+    "loyalsoldier_global_proxy": {
+      "enabled": true,
+      "type": "domain_set",
+      "category": "proxy",
+      "url": "https://raw.githubusercontent.com/Loyalsoldier/surge-rules/release/proxy.txt",
+      "trust": "primary",
+      "expected_repository": "Loyalsoldier/surge-rules"
+    },
     "blackmatrix7_openai": {
       "enabled": true,
       "type": "shadowrocket_ruleset",
       "category": "proxy",
       "url": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Shadowrocket/OpenAI/OpenAI.list",
       "trust": "reference",
-      "expected_repository": "blackmatrix7/ios_rule_script",
-      "bootstrap_path": "config/bootstrap/blackmatrix7_openai.list",
-      "bootstrap_sha256": "52984c9768f3cae1d740fb22eace657048054aa97f75146147c467644e173aba",
-      "bootstrap_git_commit": "0fa60782abfe70f58da510e90d9086136cf0d855",
-      "bootstrap_verified_at": "2026-09-08T00:00:00Z"
+      "expected_repository": "blackmatrix7/ios_rule_script"
+    },
+    "blackmatrix7_telegram": {
+      "enabled": true,
+      "type": "shadowrocket_ruleset",
+      "category": "proxy",
+      "url": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Shadowrocket/Telegram/Telegram.list",
+      "trust": "reference",
+      "expected_repository": "blackmatrix7/ios_rule_script"
     }
   }
 }

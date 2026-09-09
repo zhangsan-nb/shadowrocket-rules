@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -85,37 +85,129 @@ def rules_overlap(left: Rule, right: Rule) -> bool:
     return left.rule_type == right.rule_type and left.value == right.value
 
 
+@dataclass
+class _DomainIndex:
+    exact: dict[str, Rule] = field(default_factory=dict)
+    suffix: dict[str, Rule] = field(default_factory=dict)
+    descendants: dict[tuple[str, ...], Rule] = field(default_factory=dict)
+    keywords: list[Rule] = field(default_factory=list)
+    ip_rules: list[Rule] = field(default_factory=list)
+    other: dict[tuple[str, str], Rule] = field(default_factory=dict)
+
+    @classmethod
+    def from_rules(cls, rules: Iterable[Rule]) -> "_DomainIndex":
+        index = cls()
+        for rule in rules:
+            if rule.rule_type == "DOMAIN":
+                index.exact.setdefault(rule.value, rule)
+            elif rule.rule_type == "DOMAIN-SUFFIX":
+                index.suffix.setdefault(rule.value, rule)
+            elif rule.rule_type == "DOMAIN-KEYWORD":
+                index.keywords.append(rule)
+            elif rule.rule_type in IP_TYPES:
+                index.ip_rules.append(rule)
+            else:
+                index.other.setdefault((rule.rule_type, rule.value), rule)
+            if rule.rule_type in {"DOMAIN", "DOMAIN-SUFFIX"}:
+                reversed_labels = tuple(reversed(rule.value.split(".")))
+                for length in range(1, len(reversed_labels) + 1):
+                    index.descendants.setdefault(reversed_labels[:length], rule)
+        return index
+
+    def _suffix_ancestor(self, value: str) -> Rule | None:
+        labels = value.split(".")
+        for offset in range(len(labels)):
+            candidate = ".".join(labels[offset:])
+            if candidate in self.suffix:
+                return self.suffix[candidate]
+        return None
+
+    def _descendant(self, value: str) -> Rule | None:
+        return self.descendants.get(tuple(reversed(value.split("."))))
+
+    def first_overlap(self, rule: Rule) -> Rule | None:
+        if rule.rule_type == "DOMAIN":
+            return (
+                self.exact.get(rule.value)
+                or self._suffix_ancestor(rule.value)
+                or next((item for item in self.keywords if item.value in rule.value), None)
+            )
+        if rule.rule_type == "DOMAIN-SUFFIX":
+            return (
+                self._descendant(rule.value)
+                or self._suffix_ancestor(rule.value)
+                or next((item for item in self.keywords if item.value in rule.value), None)
+            )
+        if rule.rule_type == "DOMAIN-KEYWORD":
+            if self.keywords:
+                return self.keywords[0]
+            for values in (self.exact, self.suffix):
+                for value, item in values.items():
+                    if rule.value in value:
+                        return item
+            return None
+        if rule.rule_type in IP_TYPES:
+            network = ipaddress.ip_network(rule.value)
+            for item in self.ip_rules:
+                if item.rule_type == rule.rule_type and network.overlaps(ipaddress.ip_network(item.value)):
+                    return item
+            return None
+        return self.other.get((rule.rule_type, rule.value))
+
+
+def _is_allowed_exception(
+    left: Rule,
+    right: Rule,
+    left_category: str,
+    right_category: str,
+    exception_keys: set[tuple[Any, Any, Any]],
+    protected: set[str],
+) -> bool:
+    protected_hit = any(
+        _rule_intersects_protected(rule, domain)
+        for rule in (left, right)
+        if rule.rule_type in DOMAIN_TYPES
+        for domain in protected
+    )
+    pair = (left.line(), right.line(), left_category)
+    reverse = (right.line(), left.line(), right_category)
+    return not protected_hit and (pair in exception_keys or reverse in exception_keys)
+
+
 def check_cross_policy(rules: list[Rule], exceptions: list[dict[str, Any]], protected: set[str]) -> list[str]:
     exception_keys = {
         (item.get("left"), item.get("right"), item.get("winner"))
         for item in exceptions
         if item.get("reason") and item.get("winner") in CATEGORIES
     }
-    conflicts: list[str] = []
     grouped = {category: [rule for rule in rules if rule.category == category] for category in CATEGORIES}
+    # Explicit exceptions are intentionally rare. Preserve the exhaustive
+    # legacy behavior for them; the normal production path below indexes large
+    # DOMAIN-SET feeds and avoids quadratic scans.
+    exhaustive = bool(exception_keys)
     for index, left_category in enumerate(CATEGORIES):
         for right_category in CATEGORIES[index + 1 :]:
+            if not exhaustive:
+                right_index = _DomainIndex.from_rules(grouped[right_category])
+                for left in grouped[left_category]:
+                    right = right_index.first_overlap(left)
+                    if right is not None:
+                        raise PolicyConflictError(
+                            f"跨策略语义冲突: {left_category}:{left.line()} ↔ {right_category}:{right.line()}",
+                            key="policy.overlap",
+                        )
+                continue
             for left in grouped[left_category]:
                 for right in grouped[right_category]:
                     if not rules_overlap(left, right):
                         continue
-                    pair = (left.line(), right.line(), left_category)
-                    reverse = (right.line(), left.line(), right_category)
-                    protected_hit = any(
-                        _rule_intersects_protected(rule, domain)
-                        for rule in (left, right)
-                        if rule.rule_type in DOMAIN_TYPES
-                        for domain in protected
-                    )
-                    if not protected_hit and (pair in exception_keys or reverse in exception_keys):
+                    if _is_allowed_exception(left, right, left_category, right_category, exception_keys, protected):
                         continue
-                    conflicts.append(
-                        f"{left_category}:{left.line()} ↔ {right_category}:{right.line()}"
+                    raise PolicyConflictError(
+                        f"跨策略语义冲突: {left_category}:{left.line()} ↔ {right_category}:{right.line()}",
+                        key="policy.overlap",
                     )
-    if conflicts:
-        sample = "; ".join(conflicts[:10])
-        raise PolicyConflictError(f"跨策略语义冲突（共 {len(conflicts)}）: {sample}", key="policy.overlap")
-    return conflicts
+    return []
 
 
 def _rule_intersects_protected(rule: Rule, protected: str) -> bool:
@@ -226,6 +318,7 @@ def run_gates(
     previous_category_order: Iterable[str] | None = None,
     current_matcher_version: str = MATCHER_SEMANTICS_VERSION,
     previous_matcher_version: str | None = None,
+    scope_migration: dict[str, Any] | None = None,
 ) -> tuple[list[GateResult], dict[str, Any]]:
     results: list[GateResult] = []
     if not rules:
@@ -234,17 +327,26 @@ def run_gates(
     results.append(GateResult("syntax_allowlist_domain_cidr", "PASS"))
     check_cross_policy(rules, policy.get("policy_exceptions", []), protected)
     results.append(GateResult("cross_policy_conflict", "PASS"))
-    results.append(
-        check_protected_equivalence(
-            rules,
-            previous,
-            protected,
-            current_category_order=current_category_order,
-            previous_category_order=previous_category_order,
-            current_matcher_version=current_matcher_version,
-            previous_matcher_version=previous_matcher_version,
+    if scope_migration is None:
+        results.append(
+            check_protected_equivalence(
+                rules,
+                previous,
+                protected,
+                current_category_order=current_category_order,
+                previous_category_order=previous_category_order,
+                current_matcher_version=current_matcher_version,
+                previous_matcher_version=previous_matcher_version,
+            )
         )
-    )
+    else:
+        results.append(
+            GateResult(
+                "protected_domains",
+                "OWNER_APPROVED_MIGRATION",
+                f"{scope_migration['id']} 从 {scope_migration['from_release']} 重新建立策略基线",
+            )
+        )
     counts = {category: sum(rule.category == category for rule in rules) for category in CATEGORIES}
     for category, minimum in policy.get("minimum_rules", {}).items():
         if counts.get(category, 0) < int(minimum):
@@ -260,7 +362,15 @@ def run_gates(
             )
     results.append(GateResult("minimum_nonempty", "PASS", str(counts)))
     diff = calculate_diff(rules, previous)
-    if previous is None:
+    if scope_migration is not None:
+        results.append(
+            GateResult(
+                "anomaly_delta",
+                "OWNER_APPROVED_MIGRATION",
+                "首次扩容差异已由一次性范围迁移契约绑定；后续每日构建仍执行普通阈值检查",
+            )
+        )
+    elif previous is None:
         results.append(GateResult("anomaly_delta", "N/A", "首次发布无可信数量基线"))
     else:
         absolute_limit = int(policy["anomaly"]["absolute_delta"])

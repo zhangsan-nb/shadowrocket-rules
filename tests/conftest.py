@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import shutil
 import subprocess
 from datetime import datetime, timezone
@@ -55,6 +56,29 @@ def temp_repo(tmp_path: Path, monkeypatch) -> Path:
         path = source / filename
         if path.exists():
             shutil.copy2(path, repo / filename)
+    # Unit tests exercise pipeline behavior with a small deterministic fixture.
+    # Production source minima intentionally remain large and are covered by
+    # configuration-specific assertions rather than inflating every unit test.
+    (repo / "config" / "sources.yml").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "sources": {
+                    "fixture": {
+                        "enabled": True,
+                        "type": "shadowrocket_ruleset",
+                        "category": "proxy",
+                        "url": "https://example.invalid/fixture.list",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    policy = json.loads((repo / "config" / "policy.yml").read_text(encoding="utf-8"))
+    policy["minimum_rules"] = {"direct": 1, "reject": 1, "proxy": 1}
+    policy["minimum_rules_by_source"] = {"fixture": 30}
+    (repo / "config" / "policy.yml").write_text(json.dumps(policy), encoding="utf-8")
     subprocess.run(["git", "init", "-b", "main"], cwd=repo, check=True, capture_output=True)
     subprocess.run(["git", "config", "user.name", "test"], cwd=repo, check=True)
     subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=repo, check=True)

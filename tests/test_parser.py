@@ -5,7 +5,7 @@ import pytest
 from trusted_rules.errors import SecurityGateError
 from trusted_rules.models import Rule
 from trusted_rules.normalize import normalize_rule
-from trusted_rules.parser import parse_rules
+from trusted_rules.parser import parse_domain_set, parse_rules
 
 
 def test_domain_and_cidr_normalize(allow_types):
@@ -45,3 +45,22 @@ def test_unknown_option_fails(allow_types):
 def test_ipv6_family_mismatch_fails():
     with pytest.raises(SecurityGateError):
         normalize_rule(Rule("IP-CIDR6", "1.2.3.4/24", "proxy", "test"))
+
+
+def test_domain_set_preserves_exact_and_suffix_semantics():
+    rules = parse_domain_set(
+        "exact.example.com\n.suffix.example.com\n+.plus.example.com\n",
+        category="proxy",
+        source="test",
+    )
+    assert [item.line() for item in rules] == [
+        "DOMAIN,exact.example.com",
+        "DOMAIN-SUFFIX,suffix.example.com",
+        "DOMAIN-SUFFIX,plus.example.com",
+    ]
+
+
+def test_domain_set_rejects_rule_or_url_syntax():
+    with pytest.raises(SecurityGateError) as caught:
+        parse_domain_set("DOMAIN,example.com\n", category="reject", source="test")
+    assert caught.value.key == "domain_set.syntax"

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "v2-owner-approved-live-domain-sets",
+  "from_release": "11ca5887372dd813a81fcf28478a4cfca4cb657f",
+  "required_sources": [
+    "blackmatrix7_openai",
+    "blackmatrix7_telegram",
+    "loyalsoldier_ad_reject",
+    "loyalsoldier_china_direct",
+    "loyalsoldier_global_proxy"
+  ],
+  "reason": "Owner explicitly approved replacing the sparse OpenAI-only bootstrap with live direct, reject and global proxy domain sources."
+}

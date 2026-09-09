@@ -57,3 +57,31 @@ def parse_rules(text: str, *, category: str, source: str, allow_types: set[str])
     if not parsed:
         raise SecurityGateError(f"规则源为空: {source}", key="rule.empty")
     return parsed
+
+
+def parse_domain_set(text: str, *, category: str, source: str) -> list[Rule]:
+    """Parse a DOMAIN-SET feed without accepting a general rule syntax.
+
+    A leading ``.`` or ``+.`` explicitly means a suffix match. A bare domain
+    remains an exact DOMAIN match, so a source cannot silently widen a rule.
+    """
+
+    reject_contamination(text)
+    parsed: list[Rule] = []
+    for number, raw in enumerate(text.splitlines(), 1):
+        line = raw.strip().lstrip("\ufeff")
+        if not line or line.startswith(("#", ";", "//")):
+            continue
+        if "," in line or any(character.isspace() for character in line):
+            raise SecurityGateError(f"{source}:{number} DOMAIN-SET 语法非法", key="domain_set.syntax")
+        rule_type = "DOMAIN"
+        if line.startswith("+."):
+            rule_type = "DOMAIN-SUFFIX"
+            line = line[2:]
+        elif line.startswith("."):
+            rule_type = "DOMAIN-SUFFIX"
+            line = line[1:]
+        parsed.append(normalize_rule(Rule(rule_type, line, category, source)))
+    if not parsed:
+        raise SecurityGateError(f"规则源为空: {source}", key="rule.empty")
+    return parsed

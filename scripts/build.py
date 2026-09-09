@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 from _common import ROOT
 from trusted_rules.commands import execute
@@ -14,10 +15,23 @@ def main() -> int:
         "--source-mode",
         choices=("snapshot", "live"),
         default=None,
-        help="输入来源：snapshot=固定离线快照，live=实时 HTTPS；CI 强制 live",
+        help="输入来源：live=实时 HTTPS（默认），snapshot=仅限带固定快照的取证复现；CI 强制 live",
+    )
+    parser.add_argument(
+        "--scope-migration",
+        type=Path,
+        default=None,
+        help="仅供一次性、人工批准的范围迁移工作流使用的契约文件",
     )
     args = parser.parse_args()
-    return execute(lambda: build(ROOT, ci=args.ci, source_mode=args.source_mode))
+    return execute(
+        lambda: build(
+            ROOT,
+            ci=args.ci,
+            source_mode=args.source_mode,
+            scope_migration_path=args.scope_migration,
+        )
+    )
 
 
 if __name__ == "__main__":

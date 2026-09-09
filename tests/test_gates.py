@@ -38,6 +38,19 @@ def test_cross_category_parent_child_conflict():
 
 
 @pytest.mark.parametrize(
+    "left,right",
+    [
+        (rule("DOMAIN", "api.example.com", "direct"), rule("DOMAIN-SUFFIX", "example.com", "proxy")),
+        (rule("DOMAIN-SUFFIX", "example.com", "direct"), rule("DOMAIN-SUFFIX", "api.example.com", "proxy")),
+        (rule("DOMAIN-SUFFIX", "api.example.com", "direct"), rule("DOMAIN-SUFFIX", "example.com", "proxy")),
+    ],
+)
+def test_indexed_cross_category_conflict_keeps_domain_semantics(left, right):
+    with pytest.raises(PolicyConflictError):
+        check_cross_policy([left, right], [], set())
+
+
+@pytest.mark.parametrize(
     "before,after",
     [
         ([rule("DOMAIN-SUFFIX", "openai.com", "proxy")], [rule("DOMAIN-SUFFIX", "openai.com", "proxy"), rule("DOMAIN", "deep.x.openai.com", "direct")]),

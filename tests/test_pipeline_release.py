@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -69,6 +71,17 @@ def test_publish_script_expands_candidate_argument(temp_repo):
     assert 'candidate="\\${1:' not in script
 
 
+def test_production_source_scope_has_real_time_category_feeds():
+    config = json.loads((Path(__file__).resolve().parents[1] / "config" / "sources.yml").read_text(encoding="utf-8"))
+    sources = config["sources"]
+    assert sources["loyalsoldier_china_direct"]["category"] == "direct"
+    assert sources["loyalsoldier_ad_reject"]["category"] == "reject"
+    assert sources["loyalsoldier_global_proxy"]["category"] == "proxy"
+    assert sources["blackmatrix7_openai"]["enabled"] is True
+    assert sources["blackmatrix7_telegram"]["enabled"] is True
+    assert all(item["url"].startswith("https://") for item in sources.values())
+
+
 def test_ci_publish_rejects_non_live_candidate(temp_repo, fake_fetch, monkeypatch):
     monkeypatch.setenv("SOURCE_DATE_EPOCH", "1788831000")
     build(temp_repo, fetch_function=fake_fetch)
@@ -102,3 +115,38 @@ def test_build_reads_baseline_by_resolved_remote_tracking_sha(temp_repo, fake_fe
     monkeypatch.setenv("SOURCE_DATE_EPOCH", "1788831060")
     result = build(temp_repo, fetch_function=fake_fetch)
     assert result["build"]["baseline_release_commit"] == first
+
+
+def test_scope_migration_is_one_shot_and_recorded(temp_repo, fake_fetch, monkeypatch):
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "1788831000")
+    build(temp_repo, fetch_function=fake_fetch)
+    baseline = publish_candidate(temp_repo, temp_repo / "candidate", local_only=True)
+    migration = temp_repo / "config" / "migrations" / "test-migration.json"
+    migration.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "id": "test-owner-approval",
+                "from_release": baseline,
+                "required_sources": ["fixture"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "1788831060")
+    result = build(temp_repo, fetch_function=fake_fetch, scope_migration_path=migration)
+    assert result["build"]["scope_migration"] == "test-owner-approval"
+    report = json.loads((temp_repo / "candidate" / "reports" / "latest.json").read_text(encoding="utf-8"))
+    assert report["policy_changes"][0]["id"] == "test-owner-approval"
+
+    publish_candidate(temp_repo, temp_repo / "candidate", local_only=True)
+    with pytest.raises(TrustedRulesError) as caught:
+        build(temp_repo, fetch_function=fake_fetch, scope_migration_path=migration)
+    assert caught.value.key == "migration.baseline"
+
+
+def test_scope_migration_workflow_requires_owner_approval():
+    workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "scope-migration.yml").read_text(encoding="utf-8")
+    assert "REBASELINE-V2" in workflow
+    assert "--scope-migration config/migrations/v2-scope.json" in workflow
+    assert "contents: write" in workflow

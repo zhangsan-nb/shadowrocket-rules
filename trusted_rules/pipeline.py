@@ -14,9 +14,10 @@ from .config import load_json_yaml, load_lines, validate_policy
 from .errors import SecurityGateError, TrustedRulesError
 from .fetcher import fetch_source
 from .gates import PublicSuffixes, merge_manual, run_gates
+from .migration import load_scope_migration
 from .models import CATEGORIES, MATCHER_SEMANTICS_VERSION, GateResult, Rule, SourceMetadata
 from .normalize import normalize_domain, stable_unique
-from .parser import parse_rules
+from .parser import parse_domain_set, parse_rules
 
 FetchFunction = Callable[[str, dict[str, Any], dict[str, Any]], tuple[str, SourceMetadata]]
 LEGACY_V1_PROOF_BINDINGS = frozenset(
@@ -111,6 +112,7 @@ def _report_payload(
     metadata: list[SourceMetadata],
     gates: list[GateResult],
     diff: dict[str, Any],
+    scope_migration: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -123,7 +125,7 @@ def _report_payload(
         "sources": [item.to_dict() for item in metadata],
         "gates": [item.to_dict() for item in gates],
         "diff": diff,
-        "policy_changes": [],
+        "policy_changes": [scope_migration] if scope_migration else [],
         "protected_domain_changes": [],
         "conflicts": [],
     }
@@ -210,6 +212,16 @@ def _load_bootstrap_snapshot(repo: Path, name: str, source: dict[str, Any]) -> t
     )
 
 
+def _parse_source(text: str, source: dict[str, Any], name: str, allow_types: set[str]) -> list[Rule]:
+    source_type = str(source.get("type", ""))
+    category = str(source.get("category", ""))
+    if source_type == "shadowrocket_ruleset":
+        return parse_rules(text, category=category, source=name, allow_types=allow_types)
+    if source_type == "domain_set":
+        return parse_domain_set(text, category=category, source=name)
+    raise TrustedRulesError(f"源 {name} 的类型不受支持: {source_type}", key="source.config")
+
+
 def load_candidate_rules(candidate: Path, allow_types: set[str]) -> list[Rule]:
     rules: list[Rule] = []
     for category in CATEGORIES:
@@ -225,6 +237,7 @@ def build(
     fetch_function: FetchFunction = fetch_source,
     ci: bool = False,
     source_mode: str | None = None,
+    scope_migration_path: Path | None = None,
 ) -> dict[str, Any]:
     repo = (repo or repository_root()).resolve()
     output = (output or repo / "candidate").resolve()
@@ -233,11 +246,16 @@ def build(
     sources_config = load_json_yaml(repo / "config" / "sources.yml")
     policy = load_json_yaml(repo / "config" / "policy.yml")
     validate_policy(policy)
-    selected_source_mode = source_mode or ("live" if ci else "snapshot")
+    # All routine builds consume current HTTPS input. Snapshot mode remains an
+    # explicitly requested forensic/reproducibility path for sources that
+    # carry a committed, hash-pinned bootstrap file.
+    selected_source_mode = source_mode or "live"
     if selected_source_mode not in {"live", "snapshot"}:
         raise TrustedRulesError("source_mode 必须是 live 或 snapshot", key="source.mode")
     if ci and selected_source_mode != "live":
         raise TrustedRulesError("CI 只允许 live HTTPS 输入，禁止快照模式", key="source.ci_mode")
+    if scope_migration_path is not None and not ci and fetch_function is fetch_source:
+        raise SecurityGateError("范围迁移只能由 CI 手动审批工作流执行", key="migration.execution")
     source_resolution_mode = (
         "injected_test_fetcher"
         if fetch_function is not fetch_source
@@ -255,7 +273,7 @@ def build(
     for name, source in sources_config.get("sources", {}).items():
         if not source.get("enabled", False):
             continue
-        if source.get("type") != "shadowrocket_ruleset" or source.get("category") not in CATEGORIES:
+        if source.get("type") not in {"shadowrocket_ruleset", "domain_set"} or source.get("category") not in CATEGORIES:
             raise TrustedRulesError(f"源 {name} 的类型或类别不受支持", key="source.config")
         if fetch_function is not fetch_source:
             text, metadata = fetch_function(name, source, policy)
@@ -265,12 +283,18 @@ def build(
             text, metadata = _load_bootstrap_snapshot(repo, name, source)
         else:
             text, metadata = fetch_function(name, source, policy)
-        parsed = parse_rules(text, category=source["category"], source=name, allow_types=allow_types)
+        parsed = _parse_source(text, source, name, allow_types)
         source_counts[name] = len(parsed)
         upstream.extend(parsed)
         source_metadata.append(metadata)
     if not source_metadata:
         raise TrustedRulesError("没有启用的上游源", key="source.none")
+    scope_migration = load_scope_migration(
+        repo,
+        scope_migration_path,
+        baseline_release=release_commit(repo),
+        enabled_sources=set(source_counts),
+    )
 
     manual: list[Rule] = []
     for category in CATEGORIES:
@@ -299,6 +323,7 @@ def build(
         previous_category_order=previous_category_order,
         current_matcher_version=MATCHER_SEMANTICS_VERSION,
         previous_matcher_version=previous_matcher_version,
+        scope_migration=scope_migration,
     )
 
     generated_at = _timestamp()
@@ -312,6 +337,7 @@ def build(
                 "generated_at": generated_at,
                 "source_resolution_mode": source_resolution_mode,
                 "sources": [item.sha256 for item in source_metadata],
+                "scope_migration": scope_migration["id"] if scope_migration else None,
             }
         )
     ).hexdigest()[:20]
@@ -351,9 +377,10 @@ def build(
             "normalized_set_digest": normalized_digest,
             "gate_result_digest": gate_digest,
             "status": "PASS",
+            "scope_migration": scope_migration["id"] if scope_migration else None,
         }
         (temporary / "metadata" / "build.json").write_bytes(canonical_json(build_payload))
-        report = _report_payload(build_id, generated_at, source_sha, baseline_sha, source_metadata, gates, diff)
+        report = _report_payload(build_id, generated_at, source_sha, baseline_sha, source_metadata, gates, diff, scope_migration)
         report["source_resolution_mode"] = source_resolution_mode
         report["category_order"] = list(category_order)
         report["matcher_semantics_version"] = MATCHER_SEMANTICS_VERSION
@@ -379,6 +406,7 @@ def build(
             "input_digests": build_payload["input_digests"],
             "normalized_set_digest": normalized_digest,
             "gate_result_digest": gate_digest,
+            "scope_migration": scope_migration["id"] if scope_migration else None,
         }
         write_manifest(temporary, identity)
         verify_manifest(temporary, expected_source_sha=source_sha)

@@ -23,13 +23,14 @@ V1 只发布三个纯 RuleSet：
     python -m pip install -r requirements.txt
     python -m pytest -q
     python scripts/fetch.py
-    python scripts/build.py --source-mode snapshot
     python scripts/build.py --source-mode live
     python scripts/validate.py
     python scripts/diff.py
     python scripts/report.py
 
-普通本地 build 默认使用 config/bootstrap 中经人工核实且固定 SHA-256 与上游 commit 的首发快照，便于离线复现；也可以用 `--source-mode live` 显式请求实时 HTTPS。`build --ci` 强制 live，拒绝 snapshot 或网络失败回退。输入解析模式会写入并绑定到候选 manifest；每日自动更新只使用 CI live 模式。
+本地和 CI 构建默认都使用实时 HTTPS 输入；网络失败不会回退为空内容或旧下载。`--source-mode snapshot` 只用于仍带有提交内 SHA-256 固定快照的取证复现，绝不会被 CI 或每日任务使用。输入解析模式会写入并绑定到候选 manifest。
+
+当前实时输入范围：Loyalsoldier 的直连、拒绝、通用代理 DOMAIN-SET，以及 Blackmatrix7 的 OpenAI、Telegram Shadowrocket RuleSet。DOMAIN-SET 会严格保留裸域精确匹配与 `.`/`+.` 后缀匹配的差别；格式漂移、HTML、危险公共后缀、跨策略冲突或异常增量均会阻止发布。
 
 生成目录 candidate 不纳入 main。首次本地发布：
 

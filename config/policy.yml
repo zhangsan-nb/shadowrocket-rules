@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "category_order": ["direct", "reject", "proxy"],
   "fetch": {
     "timeout_seconds": 30,
@@ -12,12 +12,16 @@
     "no_resolve": true
   },
   "minimum_rules": {
-    "direct": 1,
-    "reject": 1,
-    "proxy": 1
+    "direct": 100000,
+    "reject": 100000,
+    "proxy": 25000
   },
   "minimum_rules_by_source": {
-    "blackmatrix7_openai": 30
+    "loyalsoldier_china_direct": 100000,
+    "loyalsoldier_ad_reject": 100000,
+    "loyalsoldier_global_proxy": 25000,
+    "blackmatrix7_openai": 30,
+    "blackmatrix7_telegram": 35
   },
   "anomaly": {
     "absolute_delta": 1000,

@@ -13,13 +13,13 @@
   },
   "minimum_rules": {
     "direct": 100000,
-    "reject": 100000,
-    "proxy": 25000
+    "reject": 30000,
+    "proxy": 6000
   },
   "minimum_rules_by_source": {
-    "loyalsoldier_china_direct": 100000,
-    "loyalsoldier_ad_reject": 100000,
-    "loyalsoldier_global_proxy": 25000,
+    "blackmatrix7_china_max": 100000,
+    "blackmatrix7_advertising_lite": 30000,
+    "blackmatrix7_proxy": 6000,
     "blackmatrix7_openai": 30,
     "blackmatrix7_telegram": 35
   },

@@ -74,11 +74,11 @@ def test_publish_script_expands_candidate_argument(temp_repo):
 def test_production_source_scope_has_real_time_category_feeds():
     config = json.loads((Path(__file__).resolve().parents[1] / "config" / "sources.yml").read_text(encoding="utf-8"))
     sources = config["sources"]
-    assert sources["loyalsoldier_china_direct"]["category"] == "direct"
-    assert sources["loyalsoldier_ad_reject"]["category"] == "reject"
-    assert sources["loyalsoldier_global_proxy"]["category"] == "proxy"
-    assert sources["blackmatrix7_openai"]["enabled"] is True
-    assert sources["blackmatrix7_telegram"]["enabled"] is True
+    enabled = {name: item for name, item in sources.items() if item["enabled"]}
+    assert {item["category"] for item in enabled.values()} >= {"direct", "reject", "proxy"}
+    assert {"blackmatrix7_china_max", "blackmatrix7_advertising_lite", "blackmatrix7_proxy"} <= enabled.keys()
+    assert {"blackmatrix7_openai", "blackmatrix7_telegram"} <= enabled.keys()
+    assert all(item["expected_repository"] == "blackmatrix7/ios_rule_script" for item in enabled.values())
     assert all(item["url"].startswith("https://") for item in sources.values())
 
 

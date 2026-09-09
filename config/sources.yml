@@ -1,29 +1,29 @@
 {
   "schema_version": 2,
   "sources": {
-    "loyalsoldier_china_direct": {
+    "blackmatrix7_china_max": {
       "enabled": true,
       "type": "domain_set",
       "category": "direct",
-      "url": "https://raw.githubusercontent.com/Loyalsoldier/surge-rules/release/direct.txt",
+      "url": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Shadowrocket/ChinaMax/ChinaMax_Domain.list",
       "trust": "primary",
-      "expected_repository": "Loyalsoldier/surge-rules"
+      "expected_repository": "blackmatrix7/ios_rule_script"
     },
-    "loyalsoldier_ad_reject": {
+    "blackmatrix7_advertising_lite": {
       "enabled": true,
       "type": "domain_set",
       "category": "reject",
-      "url": "https://raw.githubusercontent.com/Loyalsoldier/surge-rules/release/reject.txt",
+      "url": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Shadowrocket/AdvertisingLite/AdvertisingLite_Domain.list",
       "trust": "primary",
-      "expected_repository": "Loyalsoldier/surge-rules"
+      "expected_repository": "blackmatrix7/ios_rule_script"
     },
-    "loyalsoldier_global_proxy": {
+    "blackmatrix7_proxy": {
       "enabled": true,
       "type": "domain_set",
       "category": "proxy",
-      "url": "https://raw.githubusercontent.com/Loyalsoldier/surge-rules/release/proxy.txt",
+      "url": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Shadowrocket/Proxy/Proxy_Domain.list",
       "trust": "primary",
-      "expected_repository": "Loyalsoldier/surge-rules"
+      "expected_repository": "blackmatrix7/ios_rule_script"
     },
     "blackmatrix7_openai": {
       "enabled": true,

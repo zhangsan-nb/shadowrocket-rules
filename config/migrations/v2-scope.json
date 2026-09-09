@@ -5,9 +5,9 @@
   "required_sources": [
     "blackmatrix7_openai",
     "blackmatrix7_telegram",
-    "loyalsoldier_ad_reject",
-    "loyalsoldier_china_direct",
-    "loyalsoldier_global_proxy"
+    "blackmatrix7_advertising_lite",
+    "blackmatrix7_china_max",
+    "blackmatrix7_proxy"
   ],
-  "reason": "Owner explicitly approved replacing the sparse OpenAI-only bootstrap with live direct, reject and global proxy domain sources."
+  "reason": "Owner explicitly approved replacing the sparse OpenAI-only bootstrap with live direct, reject and global proxy domain sources after the original candidate was rejected for a public-suffix rule."
 }

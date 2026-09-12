@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "v2-owner-approved-live-domain-sets",
-  "from_release": "11ca5887372dd813a81fcf28478a4cfca4cb657f",
+  "from_release": "a54617d41ccf415f376dde3a1c7f194666df5d94",
   "required_sources": [
     "blackmatrix7_openai",
     "blackmatrix7_telegram",
@@ -9,5 +9,5 @@
     "blackmatrix7_china_max",
     "blackmatrix7_proxy"
   ],
-  "reason": "Owner explicitly approved replacing the sparse OpenAI-only bootstrap with live direct, reject and global proxy domain sources after the original candidate was rejected for a public-suffix rule."
+  "reason": "Owner explicitly approved replacing the sparse OpenAI-only bootstrap with live direct, reject and global proxy domain sources after the original candidate was rejected for a public-suffix rule. The baseline was advanced only because the old scheduled build regenerated timestamps without changing its sparse rule set."
 }

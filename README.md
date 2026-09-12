@@ -67,7 +67,7 @@ protected 的含义不是永远走某个策略，而是“策略变化不得自�
 
 为只依赖 Python 标准库，config/sources.yml 和 config/policy.yml 使用 JSON 语法；JSON 是 YAML 1.2 的合法子集。
 
-- config/sources.yml：唯一允许出现上游 URL 的位置
+- config/sources.yml：唯一允许出现上游 URL 的位置；源级兼容性开关必须显式审查并写入 manifest
 - config/policy.yml：阈值、CIDR、安全例外
 - config/protected_domains.txt：受保护域
 - config/allow_rule_types.txt：V1 类型白名单

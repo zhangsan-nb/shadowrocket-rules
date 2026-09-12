@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import re
 
 from .errors import SecurityGateError
@@ -35,7 +36,14 @@ def reject_contamination(text: str) -> None:
             raise SecurityGateError(f"第 {number} 行命中配置注入: {line[:80]}", key="content.injection")
 
 
-def parse_rules(text: str, *, category: str, source: str, allow_types: set[str]) -> list[Rule]:
+def parse_rules(
+    text: str,
+    *,
+    category: str,
+    source: str,
+    allow_types: set[str],
+    allow_ipv6_cidr_type_alias: bool = False,
+) -> list[Rule]:
     reject_contamination(text)
     parsed: list[Rule] = []
     for number, raw in enumerate(text.splitlines(), 1):
@@ -48,6 +56,14 @@ def parse_rules(text: str, *, category: str, source: str, allow_types: set[str])
         rule_type = parts[0].upper()
         if rule_type not in allow_types:
             raise SecurityGateError(f"{source}:{number} 未允许的规则类型 {rule_type}", key="rule.type")
+        # Some established Shadowrocket feeds use IP-CIDR for IPv6 networks.
+        # This opt-in bridge only canonicalizes a valid IPv6 network to IP-CIDR6.
+        if allow_ipv6_cidr_type_alias and rule_type == "IP-CIDR":
+            try:
+                if ipaddress.ip_network(parts[1], strict=False).version == 6:
+                    rule_type = "IP-CIDR6"
+            except ValueError:
+                pass
         no_resolve = False
         if len(parts) == 3:
             if parts[2].lower() != "no-resolve" or rule_type not in {"IP-CIDR", "IP-CIDR6", "IP-ASN"}:

@@ -47,6 +47,25 @@ def test_ipv6_family_mismatch_fails():
         normalize_rule(Rule("IP-CIDR6", "1.2.3.4/24", "proxy", "test"))
 
 
+def test_source_scoped_ipv6_cidr_alias_is_canonicalized(allow_types):
+    rules = parse_rules(
+        "IP-CIDR,2001:67c:4e8::/48,no-resolve\n",
+        category="proxy",
+        source="trusted_compat_source",
+        allow_types=allow_types,
+        allow_ipv6_cidr_type_alias=True,
+    )
+    assert [item.line() for item in rules] == ["IP-CIDR6,2001:67c:4e8::/48,no-resolve"]
+    with pytest.raises(SecurityGateError) as caught:
+        parse_rules(
+            "IP-CIDR,2001:67c:4e8::/48,no-resolve\n",
+            category="proxy",
+            source="ordinary_source",
+            allow_types=allow_types,
+        )
+    assert caught.value.key == "cidr.family"
+
+
 def test_domain_set_preserves_exact_and_suffix_semantics():
     rules = parse_domain_set(
         "exact.example.com\n.suffix.example.com\n+.plus.example.com\n",

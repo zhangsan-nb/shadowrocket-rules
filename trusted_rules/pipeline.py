@@ -216,7 +216,16 @@ def _parse_source(text: str, source: dict[str, Any], name: str, allow_types: set
     source_type = str(source.get("type", ""))
     category = str(source.get("category", ""))
     if source_type == "shadowrocket_ruleset":
-        return parse_rules(text, category=category, source=name, allow_types=allow_types)
+        compatibility = source.get("compatibility", {})
+        if not isinstance(compatibility, dict):
+            raise TrustedRulesError(f"源 {name} 的兼容性配置非法", key="source.config")
+        return parse_rules(
+            text,
+            category=category,
+            source=name,
+            allow_types=allow_types,
+            allow_ipv6_cidr_type_alias=compatibility.get("ipv6_cidr_type_alias") is True,
+        )
     if source_type == "domain_set":
         return parse_domain_set(text, category=category, source=name)
     raise TrustedRulesError(f"源 {name} 的类型不受支持: {source_type}", key="source.config")

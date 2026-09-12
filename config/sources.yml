@@ -39,7 +39,10 @@
       "category": "proxy",
       "url": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Shadowrocket/Telegram/Telegram.list",
       "trust": "reference",
-      "expected_repository": "blackmatrix7/ios_rule_script"
+      "expected_repository": "blackmatrix7/ios_rule_script",
+      "compatibility": {
+        "ipv6_cidr_type_alias": true
+      }
     }
   }
 }

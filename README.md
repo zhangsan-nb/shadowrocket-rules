@@ -72,6 +72,7 @@ protected 的含义不是永远走某个策略，而是“策略变化不得自�
 - config/protected_domains.txt：受保护域
 - config/allow_rule_types.txt：V1 类型白名单
 - config/manual：人工最高优先级规则
+- config/exclusions/direct_reject_conflicts.txt：经审查的有限 direct/reject 冲突排除项；原始上游会先通过安全检查，新增且未列出的冲突仍会阻断发布
 - config/public_suffix_list.dat 与对应 sha256：版本化、固定哈希的公共后缀安全快照
 
 更新公共后缀快照时，必须人工审查变更并同步更新哈希文件。

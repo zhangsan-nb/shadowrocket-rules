@@ -39,6 +39,7 @@ def test_manifest_binds_source_mode_policy_order_and_proof_semantics(temp_repo, 
         "input_digests",
         "normalized_set_digest",
         "gate_result_digest",
+        "static_exclusions",
         "files",
     ):
         assert field in manifest

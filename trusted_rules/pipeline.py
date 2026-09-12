@@ -13,7 +13,7 @@ from .artifacts import canonical_json, git_output, release_commit, sha256_file, 
 from .config import load_json_yaml, load_lines, validate_policy
 from .errors import SecurityGateError, TrustedRulesError
 from .fetcher import fetch_source
-from .gates import PublicSuffixes, merge_manual, run_gates
+from .gates import PublicSuffixes, check_rule_safety, merge_manual, run_gates
 from .migration import load_scope_migration
 from .models import CATEGORIES, MATCHER_SEMANTICS_VERSION, GateResult, Rule, SourceMetadata
 from .normalize import normalize_domain, stable_unique
@@ -28,6 +28,8 @@ LEGACY_V1_PROOF_BINDINGS = frozenset(
         )
     }
 )
+DIRECT_REJECT_EXCLUSION_FILE = "config/exclusions/direct_reject_conflicts.txt"
+DIRECT_REJECT_EXCLUSION_ID = "owner-reviewed-direct-reject-exclusions-v1"
 
 
 def repository_root() -> Path:
@@ -112,7 +114,7 @@ def _report_payload(
     metadata: list[SourceMetadata],
     gates: list[GateResult],
     diff: dict[str, Any],
-    scope_migration: dict[str, Any] | None = None,
+    policy_changes: list[dict[str, Any]],
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -125,7 +127,7 @@ def _report_payload(
         "sources": [item.to_dict() for item in metadata],
         "gates": [item.to_dict() for item in gates],
         "diff": diff,
-        "policy_changes": [scope_migration] if scope_migration else [],
+        "policy_changes": policy_changes,
         "protected_domain_changes": [],
         "conflicts": [],
     }
@@ -171,7 +173,13 @@ def _report_markdown(payload: dict[str, Any]) -> str:
                 *([f"- {line}" for line in item["removed"]] or ["- None"]),
             ]
         )
-    lines.extend(["", "## Policy changes", "", "- None", "", "## Protected domain changes", "", "- None", "", "## Conflicts", "", "- None", ""])
+    lines.extend(["", "## Policy changes", ""])
+    if payload["policy_changes"]:
+        for change in payload["policy_changes"]:
+            lines.append(f"- {change['id']}: {change.get('reason', '')}")
+    else:
+        lines.append("- None")
+    lines.extend(["", "## Protected domain changes", "", "- None", "", "## Conflicts", "", "- None", ""])
     return "\n".join(lines)
 
 
@@ -229,6 +237,36 @@ def _parse_source(text: str, source: dict[str, Any], name: str, allow_types: set
     if source_type == "domain_set":
         return parse_domain_set(text, category=category, source=name)
     raise TrustedRulesError(f"源 {name} 的类型不受支持: {source_type}", key="source.config")
+
+
+def _apply_direct_reject_exclusions(repo: Path, upstream: list[Rule]) -> tuple[list[Rule], dict[str, Any], list[dict[str, str]]]:
+    """Apply a finite, owner-reviewed direct/reject collision exclusion list.
+
+    It only applies to upstream DIRECT rules. Manual rules and future unlisted
+    collisions continue into the ordinary cross-policy gate, which fails closed.
+    """
+
+    path = repo / DIRECT_REJECT_EXCLUSION_FILE
+    values = {normalize_domain(value) for value in load_lines(path)}
+    direct_values = {rule.value for rule in upstream if rule.category == "direct"}
+    removed = [rule for rule in upstream if rule.category == "direct" and rule.value in values]
+    removed_keys = set(removed)
+    retained = [rule for rule in upstream if rule not in removed_keys]
+    records = [
+        {"category": rule.category, "rule": rule.line(), "source": rule.source}
+        for rule in sorted(removed)
+    ]
+    summary = {
+        "id": DIRECT_REJECT_EXCLUSION_ID,
+        "reason": "当前已审计的 direct/reject 语义冲突由显式域名清单保留给 reject；新的未列冲突仍会失败关闭。",
+        "file": DIRECT_REJECT_EXCLUSION_FILE,
+        "file_sha256": sha256_file(path),
+        "record_sha256": hashlib.sha256(canonical_json(records)).hexdigest(),
+        "configured_domain_count": len(values),
+        "applied_rule_count": len(records),
+        "stale_domain_count": len(values - direct_values),
+    }
+    return retained, summary, records
 
 
 def load_candidate_rules(candidate: Path, allow_types: set[str]) -> list[Rule]:
@@ -305,6 +343,11 @@ def build(
         enabled_sources=set(source_counts),
     )
 
+    # An exclusion must never hide a malformed, over-broad, or public-suffix
+    # upstream rule. Validate every raw input before applying the finite list.
+    check_rule_safety(upstream, policy, psl)
+    upstream, exclusion_summary, exclusion_records = _apply_direct_reject_exclusions(repo, upstream)
+
     manual: list[Rule] = []
     for category in CATEGORIES:
         path = repo / "config" / "manual" / f"{category}.list"
@@ -364,6 +407,9 @@ def build(
             )
         (temporary / "metadata" / "sources.json").write_bytes(canonical_json([item.to_dict() for item in source_metadata]))
         (temporary / "metadata" / "rule_origins.json").write_bytes(canonical_json(origins))
+        (temporary / "metadata" / "exclusions.json").write_bytes(
+            canonical_json({"summary": exclusion_summary, "removed_rules": exclusion_records})
+        )
         gate_digest = hashlib.sha256(canonical_json([item.to_dict() for item in gates])).hexdigest()
         normalized_digest = hashlib.sha256(
             "\n".join(f"{rule.category}:{rule.line()}" for rule in rules).encode("utf-8")
@@ -387,9 +433,11 @@ def build(
             "gate_result_digest": gate_digest,
             "status": "PASS",
             "scope_migration": scope_migration["id"] if scope_migration else None,
+            "static_exclusions": exclusion_summary,
         }
         (temporary / "metadata" / "build.json").write_bytes(canonical_json(build_payload))
-        report = _report_payload(build_id, generated_at, source_sha, baseline_sha, source_metadata, gates, diff, scope_migration)
+        policy_changes = ([scope_migration] if scope_migration else []) + [exclusion_summary]
+        report = _report_payload(build_id, generated_at, source_sha, baseline_sha, source_metadata, gates, diff, policy_changes)
         report["source_resolution_mode"] = source_resolution_mode
         report["category_order"] = list(category_order)
         report["matcher_semantics_version"] = MATCHER_SEMANTICS_VERSION
@@ -416,6 +464,7 @@ def build(
             "normalized_set_digest": normalized_digest,
             "gate_result_digest": gate_digest,
             "scope_migration": scope_migration["id"] if scope_migration else None,
+            "static_exclusions": exclusion_summary,
         }
         write_manifest(temporary, identity)
         verify_manifest(temporary, expected_source_sha=source_sha)

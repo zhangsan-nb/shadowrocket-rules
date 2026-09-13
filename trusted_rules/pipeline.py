@@ -33,6 +33,8 @@ DIRECT_EXCLUSION_FILES = (
     "config/exclusions/direct_proxy_conflicts.txt",
 )
 DIRECT_EXCLUSION_ID = "owner-reviewed-direct-lower-priority-exclusions-v1"
+PROXY_REJECT_EXCLUSION_FILE = "config/exclusions/proxy_reject_conflicts.txt"
+PROXY_REJECT_EXCLUSION_ID = "owner-reviewed-proxy-lower-priority-exclusions-v1"
 PROXY_KEYWORD_EXCLUSION_FILE = "config/exclusions/proxy_keywords.txt"
 PROXY_KEYWORD_EXCLUSION_ID = "owner-reviewed-proxy-keyword-exclusions-v1"
 
@@ -277,6 +279,45 @@ def _apply_direct_lower_priority_exclusions(repo: Path, upstream: list[Rule]) ->
     return retained, summary, records
 
 
+def _apply_proxy_reject_exclusions(repo: Path, upstream: list[Rule]) -> tuple[list[Rule], dict[str, Any], list[dict[str, str]]]:
+    """Apply finite, audited proxy-domain exclusions where REJECT wins.
+
+    This only removes upstream DOMAIN and DOMAIN-SUFFIX rules from PROXY.
+    Manual rules and future unlisted collisions are left for the ordinary
+    cross-policy gate, which fails closed.
+    """
+
+    relative = PROXY_REJECT_EXCLUSION_FILE
+    path = repo / relative
+    values = {normalize_domain(value) for value in load_lines(path)}
+    proxy_values = {
+        rule.value
+        for rule in upstream
+        if rule.category == "proxy" and rule.rule_type in {"DOMAIN", "DOMAIN-SUFFIX"}
+    }
+    removed = [
+        rule
+        for rule in upstream
+        if rule.category == "proxy" and rule.rule_type in {"DOMAIN", "DOMAIN-SUFFIX"} and rule.value in values
+    ]
+    removed_keys = set(removed)
+    retained = [rule for rule in upstream if rule not in removed_keys]
+    records = [
+        {"category": rule.category, "rule": rule.line(), "source": rule.source}
+        for rule in sorted(removed)
+    ]
+    summary = {
+        "id": PROXY_REJECT_EXCLUSION_ID,
+        "reason": "Audited reject/proxy domain conflicts keep the value in higher-priority REJECT; unlisted conflicts fail closed.",
+        "files": [{"path": relative, "sha256": sha256_file(path)}],
+        "record_sha256": hashlib.sha256(canonical_json(records)).hexdigest(),
+        "configured_domain_count": len(values),
+        "applied_rule_count": len(records),
+        "stale_domain_count": len(values - proxy_values),
+    }
+    return retained, summary, records
+
+
 def _apply_proxy_keyword_exclusions(repo: Path, upstream: list[Rule]) -> tuple[list[Rule], dict[str, Any], list[dict[str, str]]]:
     """Remove only audited broad proxy keywords after raw-input validation.
 
@@ -397,9 +438,10 @@ def build(
     # upstream rule. Validate every raw input before applying the finite list.
     check_rule_safety(upstream, policy, psl)
     upstream, direct_exclusion_summary, direct_exclusion_records = _apply_direct_lower_priority_exclusions(repo, upstream)
+    upstream, proxy_reject_exclusion_summary, proxy_reject_exclusion_records = _apply_proxy_reject_exclusions(repo, upstream)
     upstream, proxy_keyword_exclusion_summary, proxy_keyword_exclusion_records = _apply_proxy_keyword_exclusions(repo, upstream)
-    exclusion_summaries = [direct_exclusion_summary, proxy_keyword_exclusion_summary]
-    exclusion_records = direct_exclusion_records + proxy_keyword_exclusion_records
+    exclusion_summaries = [direct_exclusion_summary, proxy_reject_exclusion_summary, proxy_keyword_exclusion_summary]
+    exclusion_records = direct_exclusion_records + proxy_reject_exclusion_records + proxy_keyword_exclusion_records
 
     manual: list[Rule] = []
     for category in CATEGORIES:

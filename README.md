@@ -93,7 +93,7 @@ manifest 不自哈希。额外文件、缺失文件、路径穿越、符号链�
 
 ## 调度与 Action 供应链
 
-daily-build 在 UTC 01:30 运行，即北京时间 09:30。GitHub Actions 不支持 timezone 字段，因此 cron 已直接换算。
+daily-build 在 UTC 20:30 运行，即北京时间次日 04:30。GitHub Actions 不支持 timezone 字段，因此 cron 已直接换算。
 
 所有使用的官方 Actions 都固定到 2026-09-08 从其官方 Git 仓库标签解析得到的完整 commit SHA。升级时必须重新核实，不接受只写 v4 或 main。
 

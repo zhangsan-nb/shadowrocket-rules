@@ -117,7 +117,7 @@ release 同时保存历史报告，保证可回答规则何时进入、来自哪
 - Validate job 仅 `contents: read`。
 - Publish job 单独 `contents: write`，且只有 validate 全部成功后才运行。
 - 优先官方 Action，并固定到完整 commit SHA；避免不必要的 Marketplace Action。
-- 每日构建按北京时间 09:30，对应 UTC cron 必须正确表达；GitHub Actions cron 不支持 `timezone` 字段。
+- 每日构建按北京时间 04:30，对应 UTC cron 必须正确表达；GitHub Actions cron 不支持 `timezone` 字段。
 - 候选产物在 validate 与 publish 间传递并校验 hashes。
 - publish 只更新 release 分支的允许路径，保留连续历史，不 force push。
 

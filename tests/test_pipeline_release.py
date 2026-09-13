@@ -71,6 +71,12 @@ def test_daily_pipeline_pins_both_jobs_to_event_commit(temp_repo):
     assert workflow.count('test "$(git rev-parse HEAD)" = "$GITHUB_SHA"') == 2
 
 
+def test_daily_pipeline_runs_at_0430_beijing_time(temp_repo):
+    workflow = (temp_repo / ".github" / "workflows" / "daily-build.yml").read_text(encoding="utf-8")
+    assert 'cron: "30 20 * * *"' in workflow
+    assert "04:30 Asia/Shanghai" in workflow
+
+
 def test_publish_script_expands_candidate_argument(temp_repo):
     script = (temp_repo / "scripts" / "publish.sh").read_text(encoding="utf-8")
     assert 'candidate="${1:-$repo_root/candidate-verified}"' in script

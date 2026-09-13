@@ -28,8 +28,11 @@ LEGACY_V1_PROOF_BINDINGS = frozenset(
         )
     }
 )
-DIRECT_REJECT_EXCLUSION_FILE = "config/exclusions/direct_reject_conflicts.txt"
-DIRECT_REJECT_EXCLUSION_ID = "owner-reviewed-direct-reject-exclusions-v1"
+DIRECT_EXCLUSION_FILES = (
+    "config/exclusions/direct_reject_conflicts.txt",
+    "config/exclusions/direct_proxy_conflicts.txt",
+)
+DIRECT_EXCLUSION_ID = "owner-reviewed-direct-lower-priority-exclusions-v1"
 
 
 def repository_root() -> Path:
@@ -239,15 +242,19 @@ def _parse_source(text: str, source: dict[str, Any], name: str, allow_types: set
     raise TrustedRulesError(f"源 {name} 的类型不受支持: {source_type}", key="source.config")
 
 
-def _apply_direct_reject_exclusions(repo: Path, upstream: list[Rule]) -> tuple[list[Rule], dict[str, Any], list[dict[str, str]]]:
-    """Apply a finite, owner-reviewed direct/reject collision exclusion list.
+def _apply_direct_lower_priority_exclusions(repo: Path, upstream: list[Rule]) -> tuple[list[Rule], dict[str, Any], list[dict[str, str]]]:
+    """Apply finite, owner-reviewed direct collision exclusion lists.
 
     It only applies to upstream DIRECT rules. Manual rules and future unlisted
     collisions continue into the ordinary cross-policy gate, which fails closed.
     """
 
-    path = repo / DIRECT_REJECT_EXCLUSION_FILE
-    values = {normalize_domain(value) for value in load_lines(path)}
+    values: set[str] = set()
+    files: list[dict[str, str]] = []
+    for relative in DIRECT_EXCLUSION_FILES:
+        path = repo / relative
+        values.update(normalize_domain(value) for value in load_lines(path))
+        files.append({"path": relative, "sha256": sha256_file(path)})
     direct_values = {rule.value for rule in upstream if rule.category == "direct"}
     removed = [rule for rule in upstream if rule.category == "direct" and rule.value in values]
     removed_keys = set(removed)
@@ -257,10 +264,9 @@ def _apply_direct_reject_exclusions(repo: Path, upstream: list[Rule]) -> tuple[l
         for rule in sorted(removed)
     ]
     summary = {
-        "id": DIRECT_REJECT_EXCLUSION_ID,
-        "reason": "当前已审计的 direct/reject 语义冲突由显式域名清单保留给 reject；新的未列冲突仍会失败关闭。",
-        "file": DIRECT_REJECT_EXCLUSION_FILE,
-        "file_sha256": sha256_file(path),
+        "id": DIRECT_EXCLUSION_ID,
+        "reason": "当前已审计的 direct/reject 与 direct/proxy 语义冲突由显式域名清单保留给低优先级类别；新的未列冲突仍会失败关闭。",
+        "files": files,
         "record_sha256": hashlib.sha256(canonical_json(records)).hexdigest(),
         "configured_domain_count": len(values),
         "applied_rule_count": len(records),
@@ -346,7 +352,7 @@ def build(
     # An exclusion must never hide a malformed, over-broad, or public-suffix
     # upstream rule. Validate every raw input before applying the finite list.
     check_rule_safety(upstream, policy, psl)
-    upstream, exclusion_summary, exclusion_records = _apply_direct_reject_exclusions(repo, upstream)
+    upstream, exclusion_summary, exclusion_records = _apply_direct_lower_priority_exclusions(repo, upstream)
 
     manual: list[Rule] = []
     for category in CATEGORIES:

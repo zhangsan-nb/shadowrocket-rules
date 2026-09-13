@@ -9,7 +9,7 @@ import pytest
 
 from trusted_rules.errors import SourceFetchError, TrustedRulesError
 from trusted_rules.models import Rule
-from trusted_rules.pipeline import _apply_direct_reject_exclusions, build
+from trusted_rules.pipeline import _apply_direct_lower_priority_exclusions, build
 from trusted_rules.release import publish_candidate
 
 
@@ -81,15 +81,17 @@ def test_production_source_scope_has_real_time_category_feeds():
     assert {"blackmatrix7_openai", "blackmatrix7_telegram"} <= enabled.keys()
     assert all(item["expected_repository"] == "blackmatrix7/ios_rule_script" for item in enabled.values())
     assert all(item["url"].startswith("https://") for item in sources.values())
-    exclusion_file = Path(__file__).resolve().parents[1] / "config" / "exclusions" / "direct_reject_conflicts.txt"
-    assert exclusion_file.is_file()
-    assert len([line for line in exclusion_file.read_text(encoding="utf-8").splitlines() if line and not line.startswith("#")]) > 100
+    exclusion_directory = Path(__file__).resolve().parents[1] / "config" / "exclusions"
+    for filename in ("direct_reject_conflicts.txt", "direct_proxy_conflicts.txt"):
+        exclusion_file = exclusion_directory / filename
+        assert exclusion_file.is_file()
+        assert len([line for line in exclusion_file.read_text(encoding="utf-8").splitlines() if line and not line.startswith("#")]) > 100
 
 
-def test_direct_reject_exclusion_is_finite_and_auditable(temp_repo):
+def test_direct_lower_priority_exclusion_is_finite_and_auditable(temp_repo):
     path = temp_repo / "config" / "exclusions" / "direct_reject_conflicts.txt"
     path.write_text("ads.example.com\n", encoding="utf-8")
-    retained, summary, records = _apply_direct_reject_exclusions(
+    retained, summary, records = _apply_direct_lower_priority_exclusions(
         temp_repo,
         [
             Rule("DOMAIN-SUFFIX", "ads.example.com", "direct", "upstream"),

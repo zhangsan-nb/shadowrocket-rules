@@ -1,5 +1,5 @@
 # NAME: Proxy
-# GENERATED: 2026-09-13T06:39:46.716337+00:00
+# GENERATED: 2026-09-13T22:31:46.334818+00:00
 # DO NOT EDIT
 # ORDER: direct -> reject -> proxy -> GEOIP CN -> FINAL
 
@@ -4449,6 +4449,7 @@ DOMAIN-SUFFIX,qq.co.za
 DOMAIN-SUFFIX,qstatus.com
 DOMAIN-SUFFIX,qtrac.eu
 DOMAIN-SUFFIX,qtweeter.com
+DOMAIN-SUFFIX,quakemachinex.com
 DOMAIN-SUFFIX,quannengshen.org
 DOMAIN-SUFFIX,quantumbooter.net
 DOMAIN-SUFFIX,quay.io

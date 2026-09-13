@@ -50,6 +50,12 @@ def test_indexed_cross_category_conflict_keeps_domain_semantics(left, right):
         check_cross_policy([left, right], [], set())
 
 
+def test_indexed_cross_category_suffix_keyword_conflict_is_conservative():
+    rules = [rule("DOMAIN-SUFFIX", "example.com", "direct"), rule("DOMAIN-KEYWORD", "token", "proxy")]
+    with pytest.raises(PolicyConflictError):
+        check_cross_policy(rules, [], set())
+
+
 @pytest.mark.parametrize(
     "before,after",
     [

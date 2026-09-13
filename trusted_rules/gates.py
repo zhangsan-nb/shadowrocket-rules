@@ -136,15 +136,19 @@ class _DomainIndex:
             return (
                 self._descendant(rule.value)
                 or self._suffix_ancestor(rule.value)
-                or next((item for item in self.keywords if item.value in rule.value), None)
+                # A keyword may be embedded in an arbitrary new child label of
+                # this suffix, so any nonempty keyword intersects it.
+                or (self.keywords[0] if self.keywords else None)
             )
         if rule.rule_type == "DOMAIN-KEYWORD":
             if self.keywords:
                 return self.keywords[0]
-            for values in (self.exact, self.suffix):
-                for value, item in values.items():
-                    if rule.value in value:
-                        return item
+            for value, item in self.exact.items():
+                if rule.value in value:
+                    return item
+            if self.suffix:
+                # The keyword can occur in a child label of any suffix.
+                return next(iter(self.suffix.values()))
             return None
         if rule.rule_type in IP_TYPES:
             network = ipaddress.ip_network(rule.value)

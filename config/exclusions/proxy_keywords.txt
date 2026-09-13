@@ -1,0 +1,6 @@
+# Owner-reviewed on 2026-09-13 from the live OpenAI and Telegram rulesets.
+# These broad proxy keywords semantically intersect every direct/reject suffix.
+# Precise upstream DOMAIN, DOMAIN-SUFFIX, and CIDR entries remain in PROXY.
+# Any future, unlisted cross-policy conflict fails closed.
+openai
+nicegram

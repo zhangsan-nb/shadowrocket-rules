@@ -9,7 +9,7 @@ import pytest
 
 from trusted_rules.errors import SourceFetchError, TrustedRulesError
 from trusted_rules.models import Rule
-from trusted_rules.pipeline import _apply_direct_lower_priority_exclusions, build
+from trusted_rules.pipeline import _apply_direct_lower_priority_exclusions, _apply_proxy_keyword_exclusions, build
 from trusted_rules.release import publish_candidate
 
 
@@ -86,6 +86,7 @@ def test_production_source_scope_has_real_time_category_feeds():
         exclusion_file = exclusion_directory / filename
         assert exclusion_file.is_file()
         assert len([line for line in exclusion_file.read_text(encoding="utf-8").splitlines() if line and not line.startswith("#")]) > 100
+    assert (exclusion_directory / "proxy_keywords.txt").read_text(encoding="utf-8").splitlines()[-2:] == ["openai", "nicegram"]
 
 
 def test_direct_lower_priority_exclusion_is_finite_and_auditable(temp_repo):
@@ -105,6 +106,22 @@ def test_direct_lower_priority_exclusion_is_finite_and_auditable(temp_repo):
     ]
     assert summary["applied_rule_count"] == 1
     assert records == [{"category": "direct", "rule": "DOMAIN-SUFFIX,ads.example.com", "source": "upstream"}]
+
+
+def test_proxy_keyword_exclusion_is_exact_and_auditable(temp_repo):
+    path = temp_repo / "config" / "exclusions" / "proxy_keywords.txt"
+    path.write_text("openai\n", encoding="utf-8")
+    retained, summary, records = _apply_proxy_keyword_exclusions(
+        temp_repo,
+        [
+            Rule("DOMAIN-KEYWORD", "openai", "proxy", "upstream"),
+            Rule("DOMAIN-SUFFIX", "openai.com", "proxy", "upstream"),
+            Rule("DOMAIN-KEYWORD", "openai", "direct", "upstream"),
+        ],
+    )
+    assert [rule.line() for rule in retained] == ["DOMAIN-SUFFIX,openai.com", "DOMAIN-KEYWORD,openai"]
+    assert summary["applied_rule_count"] == 1
+    assert records == [{"category": "proxy", "rule": "DOMAIN-KEYWORD,openai", "source": "upstream"}]
 
 
 def test_ci_publish_rejects_non_live_candidate(temp_repo, fake_fetch, monkeypatch):

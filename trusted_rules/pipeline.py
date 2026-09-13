@@ -16,7 +16,7 @@ from .fetcher import fetch_source
 from .gates import PublicSuffixes, check_rule_safety, merge_manual, run_gates
 from .migration import load_scope_migration
 from .models import CATEGORIES, MATCHER_SEMANTICS_VERSION, GateResult, Rule, SourceMetadata
-from .normalize import normalize_domain, stable_unique
+from .normalize import normalize_domain, normalize_rule, stable_unique
 from .parser import parse_domain_set, parse_rules
 
 FetchFunction = Callable[[str, dict[str, Any], dict[str, Any]], tuple[str, SourceMetadata]]
@@ -33,6 +33,8 @@ DIRECT_EXCLUSION_FILES = (
     "config/exclusions/direct_proxy_conflicts.txt",
 )
 DIRECT_EXCLUSION_ID = "owner-reviewed-direct-lower-priority-exclusions-v1"
+PROXY_KEYWORD_EXCLUSION_FILE = "config/exclusions/proxy_keywords.txt"
+PROXY_KEYWORD_EXCLUSION_ID = "owner-reviewed-proxy-keyword-exclusions-v1"
 
 
 def repository_root() -> Path:
@@ -275,6 +277,48 @@ def _apply_direct_lower_priority_exclusions(repo: Path, upstream: list[Rule]) ->
     return retained, summary, records
 
 
+def _apply_proxy_keyword_exclusions(repo: Path, upstream: list[Rule]) -> tuple[list[Rule], dict[str, Any], list[dict[str, str]]]:
+    """Remove only audited broad proxy keywords after raw-input validation.
+
+    A DOMAIN-KEYWORD can match any future child of a DOMAIN-SUFFIX. Such a
+    rule cannot safely coexist with large direct/reject domain sets. The
+    precise upstream OpenAI and Telegram domain/CIDR rules are retained.
+    """
+
+    relative = PROXY_KEYWORD_EXCLUSION_FILE
+    path = repo / relative
+    values = {
+        normalize_rule(Rule("DOMAIN-KEYWORD", value, "proxy", "static_exclusion")).value
+        for value in load_lines(path)
+    }
+    proxy_keywords = {
+        rule.value
+        for rule in upstream
+        if rule.category == "proxy" and rule.rule_type == "DOMAIN-KEYWORD"
+    }
+    removed = [
+        rule
+        for rule in upstream
+        if rule.category == "proxy" and rule.rule_type == "DOMAIN-KEYWORD" and rule.value in values
+    ]
+    removed_keys = set(removed)
+    retained = [rule for rule in upstream if rule not in removed_keys]
+    records = [
+        {"category": rule.category, "rule": rule.line(), "source": rule.source}
+        for rule in sorted(removed)
+    ]
+    summary = {
+        "id": PROXY_KEYWORD_EXCLUSION_ID,
+        "reason": "Audited broad proxy keywords are removed while precise proxy domains and CIDRs remain; unlisted conflicts fail closed.",
+        "files": [{"path": relative, "sha256": sha256_file(path)}],
+        "record_sha256": hashlib.sha256(canonical_json(records)).hexdigest(),
+        "configured_keyword_count": len(values),
+        "applied_rule_count": len(records),
+        "stale_keyword_count": len(values - proxy_keywords),
+    }
+    return retained, summary, records
+
+
 def load_candidate_rules(candidate: Path, allow_types: set[str]) -> list[Rule]:
     rules: list[Rule] = []
     for category in CATEGORIES:
@@ -352,7 +396,10 @@ def build(
     # An exclusion must never hide a malformed, over-broad, or public-suffix
     # upstream rule. Validate every raw input before applying the finite list.
     check_rule_safety(upstream, policy, psl)
-    upstream, exclusion_summary, exclusion_records = _apply_direct_lower_priority_exclusions(repo, upstream)
+    upstream, direct_exclusion_summary, direct_exclusion_records = _apply_direct_lower_priority_exclusions(repo, upstream)
+    upstream, proxy_keyword_exclusion_summary, proxy_keyword_exclusion_records = _apply_proxy_keyword_exclusions(repo, upstream)
+    exclusion_summaries = [direct_exclusion_summary, proxy_keyword_exclusion_summary]
+    exclusion_records = direct_exclusion_records + proxy_keyword_exclusion_records
 
     manual: list[Rule] = []
     for category in CATEGORIES:
@@ -414,7 +461,7 @@ def build(
         (temporary / "metadata" / "sources.json").write_bytes(canonical_json([item.to_dict() for item in source_metadata]))
         (temporary / "metadata" / "rule_origins.json").write_bytes(canonical_json(origins))
         (temporary / "metadata" / "exclusions.json").write_bytes(
-            canonical_json({"summary": exclusion_summary, "removed_rules": exclusion_records})
+            canonical_json({"summaries": exclusion_summaries, "removed_rules": exclusion_records})
         )
         gate_digest = hashlib.sha256(canonical_json([item.to_dict() for item in gates])).hexdigest()
         normalized_digest = hashlib.sha256(
@@ -439,10 +486,10 @@ def build(
             "gate_result_digest": gate_digest,
             "status": "PASS",
             "scope_migration": scope_migration["id"] if scope_migration else None,
-            "static_exclusions": exclusion_summary,
+            "static_exclusions": exclusion_summaries,
         }
         (temporary / "metadata" / "build.json").write_bytes(canonical_json(build_payload))
-        policy_changes = ([scope_migration] if scope_migration else []) + [exclusion_summary]
+        policy_changes = ([scope_migration] if scope_migration else []) + exclusion_summaries
         report = _report_payload(build_id, generated_at, source_sha, baseline_sha, source_metadata, gates, diff, policy_changes)
         report["source_resolution_mode"] = source_resolution_mode
         report["category_order"] = list(category_order)
@@ -470,7 +517,7 @@ def build(
             "normalized_set_digest": normalized_digest,
             "gate_result_digest": gate_digest,
             "scope_migration": scope_migration["id"] if scope_migration else None,
-            "static_exclusions": exclusion_summary,
+            "static_exclusions": exclusion_summaries,
         }
         write_manifest(temporary, identity)
         verify_manifest(temporary, expected_source_sha=source_sha)

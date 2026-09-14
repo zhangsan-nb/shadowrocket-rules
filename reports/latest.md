@@ -1,7 +1,7 @@
 # Shadowrocket Trusted Rules Audit
 
-- Build: 2026-09-13T22:31:46.334818+00:00
-- Build ID: 1378b007ce6028b83b67
+- Build: 2026-09-14T23:16:35.666172+00:00
+- Build ID: ae9173e8997e6421b85a
 - Result: PASS
 - Published: NO (candidate)
 
@@ -23,11 +23,11 @@
 
 ## DIRECT
 
-- Previous: 110059
+- Previous: 110058
 - Current: 110058
 - Added: 0
-- Removed: 1
-- Delta: 0.000909%
+- Removed: 0
+- Delta: 0.0%
 
 ### Added rules
 
@@ -35,7 +35,7 @@
 
 ### Removed rules
 
-- DOMAIN-SUFFIX,spst2.com
+- None
 
 ## REJECT
 
@@ -55,15 +55,15 @@
 
 ## PROXY
 
-- Previous: 6587
+- Previous: 6588
 - Current: 6588
-- Added: 1
+- Added: 0
 - Removed: 0
-- Delta: 0.015181%
+- Delta: 0.0%
 
 ### Added rules
 
-- DOMAIN-SUFFIX,quakemachinex.com
+- None
 
 ### Removed rules
 

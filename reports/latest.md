@@ -1,7 +1,7 @@
 # Shadowrocket Trusted Rules Audit
 
-- Build: 2026-09-15T23:01:24.957933+00:00
-- Build ID: 2755fad667ea5ff0a0fc
+- Build: 2026-09-16T23:07:33.718679+00:00
+- Build ID: 357fca1150bec3a068dd
 - Result: PASS
 - Published: NO (candidate)
 

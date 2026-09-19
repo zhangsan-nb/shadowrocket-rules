@@ -1,13 +1,13 @@
 # Shadowrocket Trusted Rules Audit
 
-- Build: 2026-09-18T22:43:37.452641+00:00
-- Build ID: a5c1e8ea1a2f707b508b
+- Build: 2026-09-19T22:23:05.665180+00:00
+- Build ID: c8727c6d114cccb01e37
 - Result: PASS
 - Published: NO (candidate)
 
 ## Source status
 
-- blackmatrix7_china_max: PASS, bytes=1522689, sha256=39c4ea247d56204190e5c268e23988b6fc1435788a9cfa1930856b14df697458
+- blackmatrix7_china_max: PASS, bytes=1522689, sha256=13af7027d12c0df9cf3cdb01e220bbe94784ec27df081e940e7e35718fe81c74
 - blackmatrix7_advertising_lite: PASS, bytes=595771, sha256=e43ab7970cfa5bde9b222a18c0f5673dcced42e1bfada25f04254a514231ec34
 - blackmatrix7_proxy: PASS, bytes=96625, sha256=467945903ff227c420e913ace21bd22c17aa7380afc5a2d32e0a02bce5ed4c83
 - blackmatrix7_openai: PASS, bytes=1353, sha256=6f4047cdbf6953cf5d9b38c4ccd6da7bc6f1acb91b7a87134f25d5b8f5d2408b

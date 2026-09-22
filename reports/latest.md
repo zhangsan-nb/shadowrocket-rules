@@ -1,7 +1,7 @@
 # Shadowrocket Trusted Rules Audit
 
-- Build: 2026-09-21T23:27:44.401412+00:00
-- Build ID: b20b3ae30a86b5acdb19
+- Build: 2026-09-22T23:07:50.984380+00:00
+- Build ID: 81cf1edb6ab640f5d818
 - Result: PASS
 - Published: NO (candidate)
 
@@ -23,23 +23,15 @@
 
 ## DIRECT
 
-- Previous: 110058
+- Previous: 110067
 - Current: 110067
-- Added: 9
+- Added: 0
 - Removed: 0
-- Delta: 0.008178%
+- Delta: 0.0%
 
 ### Added rules
 
-- DOMAIN-SUFFIX,fnrrc.com
-- DOMAIN-SUFFIX,gongniukaiguan.net
-- DOMAIN-SUFFIX,mddclass.com
-- DOMAIN-SUFFIX,qudian.com
-- DOMAIN-SUFFIX,uboxs.com
-- DOMAIN-SUFFIX,vxhcm.com
-- DOMAIN-SUFFIX,youbianku.com
-- DOMAIN-SUFFIX,zhongliujie.com
-- DOMAIN-SUFFIX,zuiyou.tv
+- None
 
 ### Removed rules
 

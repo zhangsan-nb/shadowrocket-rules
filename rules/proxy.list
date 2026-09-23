@@ -1,5 +1,5 @@
 # NAME: Proxy
-# GENERATED: 2026-09-22T23:07:50.984380+00:00
+# GENERATED: 2026-09-23T23:02:19.186825+00:00
 # DO NOT EDIT
 # ORDER: direct -> reject -> proxy -> GEOIP CN -> FINAL
 
@@ -1059,6 +1059,7 @@ DOMAIN-SUFFIX,chinesegay.org
 DOMAIN-SUFFIX,chinesen.de
 DOMAIN-SUFFIX,chinesenews.net.au
 DOMAIN-SUFFIX,chinesepen.org
+DOMAIN-SUFFIX,chineseposters.net
 DOMAIN-SUFFIX,chineseradioseattle.com
 DOMAIN-SUFFIX,chinesetalks.net
 DOMAIN-SUFFIX,chineseupress.com
@@ -3894,6 +3895,7 @@ DOMAIN-SUFFIX,nordstromimage.com
 DOMAIN-SUFFIX,nordstrommedia.com
 DOMAIN-SUFFIX,nordstromrack.com
 DOMAIN-SUFFIX,nordvpn.com
+DOMAIN-SUFFIX,note.com
 DOMAIN-SUFFIX,notepad-plus-plus.org
 DOMAIN-SUFFIX,notion.so
 DOMAIN-SUFFIX,nottinghampost.com

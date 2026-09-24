@@ -1,7 +1,7 @@
 # Shadowrocket Trusted Rules Audit
 
-- Build: 2026-09-23T23:02:19.186825+00:00
-- Build ID: 2bb513160428f5ed9daa
+- Build: 2026-09-24T23:17:54.002620+00:00
+- Build ID: 1985f20ee25ab83337cb
 - Result: PASS
 - Published: NO (candidate)
 
@@ -23,15 +23,15 @@
 
 ## DIRECT
 
-- Previous: 110067
+- Previous: 110068
 - Current: 110068
-- Added: 1
+- Added: 0
 - Removed: 0
-- Delta: 0.000909%
+- Delta: 0.0%
 
 ### Added rules
 
-- DOMAIN-SUFFIX,sjfls6.com
+- None
 
 ### Removed rules
 
@@ -55,16 +55,15 @@
 
 ## PROXY
 
-- Previous: 6588
+- Previous: 6590
 - Current: 6590
-- Added: 2
+- Added: 0
 - Removed: 0
-- Delta: 0.030358%
+- Delta: 0.0%
 
 ### Added rules
 
-- DOMAIN-SUFFIX,chineseposters.net
-- DOMAIN-SUFFIX,note.com
+- None
 
 ### Removed rules
 
